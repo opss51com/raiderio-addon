@@ -1,4 +1,5 @@
-## Interface: 70300
+## Interface: 80000
+## X-Min-Interface: 70300
 ## Title: Raider.IO Mythic Plus (Korea - Horde)
 ## Notes: Raider.IO Mythic Plus Scores DB for Korea - Horde. Updated nightly.
 ## Author: Vladinator (Voidzone-Ravencrest) and Aspyr (Aspyrael-Skullcrusher)
