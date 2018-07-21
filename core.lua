@@ -2264,6 +2264,38 @@ do
 		end
 	end
 
+	-- Blizzard_Communities
+	uiHooks[#uiHooks + 1] = function()
+		if _G.CommunitiesFrame then
+			local function OnEnter(self)
+				if not addonConfig.enableGuildTooltips then
+					return
+				end
+				local info = self:GetMemberInfo()
+				if not info or (info.clubType ~= Enum.ClubType.Guild and info.clubType ~= Enum.ClubType.Character) then
+					return
+				end
+				if info.name and (info.level or MAX_LEVEL) >= MAX_LEVEL then
+					local hasOwner = GameTooltip:GetOwner()
+					if not hasOwner then
+						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
+					end
+					if not AppendGameTooltip(GameTooltip, info.name, not hasOwner, nil, PLAYER_FACTION, nil) and not hasOwner then
+						GameTooltip:Hide()
+					end
+				end
+			end
+			local function OnLeave(self)
+				GameTooltip:Hide()
+			end
+			for _, b in pairs(CommunitiesFrame.MemberList.ListScrollFrame.buttons) do
+				b:HookScript("OnEnter", OnEnter)
+				b:HookScript("OnLeave", OnLeave)
+			end
+			return 1
+		end
+	end
+
 	-- ChatFrame (Who Results)
 	uiHooks[#uiHooks + 1] = function()
 		local function pattern(pattern)
