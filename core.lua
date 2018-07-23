@@ -2433,6 +2433,7 @@ do
 			FOCUS = 1,
 			WORLD_STATE_SCORE = 1,
 			COMMUNITIES_WOW_MEMBER = 1,
+			COMMUNITIES_GUILD_MEMBER = 1,
 			SELF = 1
 		}
 		local OFFSET_BETWEEN = -5 -- default UI makes this offset look nice
