@@ -2624,13 +2624,26 @@ do
 			if type(link) ~= "string" then
 				return
 			end
-			local inst, lvl, a1, a2, a3 = link:match("keystone:(%d+):(%d+):(%d+):(%d+):(%d+)")
-			if not lvl then
-				inst, lvl, a1, a2, a3 = link:match("item:138019:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(%d+):(%d+):(%d+):(%d+):(%d+)")
+
+			local patterns = {
+				"keystone:%d+:(%d+):(%d+):(%d+):(%d+):(%d+)",
+				"item:138019:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(%d+):(%d+):(%d+):(%d+):(%d+)",
+				"item:158923:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(%d+):(%d+):(%d+):(%d+):(%d+)",
+			};
+
+			local inst, lvl, a1, a2, a3;
+			for _, pattern in ipairs(patterns) do
+				inst, lvl, a1, a2, a3 = link:match(pattern)
+
+				if lvl and (tonumber(lvl) or 100) < 100 then
+					break
+				end
 			end
+
 			if not lvl then
 				return
 			end
+
 			lvl = tonumber(lvl) or 0
 			local baseScore = KEYSTONE_LEVEL_TO_BASE_SCORE[lvl]
 			if not baseScore then
