@@ -20,7 +20,7 @@ echo "Manual build $NEW_VERSION" > addon/CHANGES.txt
 
 echo "Overlaying latest DB..."
 cp -v ../db/db_*.lua addon/RaiderIO/db
-cp ../*.{lua,toc} addon/RaiderIO
+cp ../*.{lua,toc,xml} addon/RaiderIO
 cp ../locale/enUS.lua addon/RaiderIO/locale
 
 echo "Setting up as version v$NEW_VERSION"

@@ -106,5 +106,11 @@ L.UNLOCKING_PROFILE_FRAME = "RaiderIO: Unlocking the M+ Profile Frame."
 L.RAIDERIO_CLIENT_CUSTOMIZATION = "RaiderIO Client Customization"
 L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS = "Allow RaiderIO Client Enhancements"
 L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS_DESC = "Enabling this will allow you to view detailed My M+ Profile data downloaded from the RaiderIO Client for your claimed characters."
+L.GUILD_BEST_WEEKLY = "Guild: Weekly Best"
+L.GUILD_BEST_SEASON = "Guild: Season Best"
+L.SHOW_CLIENT_GUILD_BEST = "Show Best Records in Group Finder Mythic Dungeons"
+L.SHOW_CLIENT_GUILD_BEST_DESC = "Enabling this will display your guild's Top 5 runs (Season or Weekly) in the Mythic Dungeons tab of the Group Finder window."
+L.CHECKBOX_DISPLAY_WEEKLY = "Display Weekly"
+L.NO_GUILD_RECORD = "No Guild Records"
 
 ns.L = L

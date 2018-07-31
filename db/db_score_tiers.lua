@@ -134,66 +134,105 @@ ns.scoreTiersSimple = {
 ns.dungeons = {
   [1] = {
     ["id"] = 7546,
+    ["keystone_instance"] = 206,
+    ["instance_map_id"] = 1458,
+    ["lfd_activity_ids"] = {462, 448, 438, 428},
     ["name"] = "Neltharion's Lair",
     ["shortName"] = "NL"
   },
   [2] = {
     ["id"] = 7672,
+    ["keystone_instance"] = 200,
+    ["instance_map_id"] = 1477,
+    ["lfd_activity_ids"] = {461, 447, 437, 427},
     ["name"] = "Halls of Valor",
     ["shortName"] = "HOV"
   },
   [3] = {
     ["id"] = 7673,
+    ["keystone_instance"] = 198,
+    ["instance_map_id"] = 1466,
+    ["lfd_activity_ids"] = {460, 446, 436, 426},
     ["name"] = "Darkheart Thicket",
     ["shortName"] = "DHT"
   },
   [4] = {
     ["id"] = 7787,
+    ["keystone_instance"] = 207,
+    ["instance_map_id"] = 1493,
+    ["lfd_activity_ids"] = {464, 451, 441, 431},
     ["name"] = "Vault of the Wardens",
     ["shortName"] = "VOTW"
   },
   [5] = {
     ["id"] = 7805,
+    ["keystone_instance"] = 199,
+    ["instance_map_id"] = 1501,
+    ["lfd_activity_ids"] = {463, 450, 440, 430},
     ["name"] = "Black Rook Hold",
     ["shortName"] = "BRH"
   },
   [6] = {
     ["id"] = 7812,
+    ["keystone_instance"] = 208,
+    ["instance_map_id"] = 1492,
+    ["lfd_activity_ids"] = {465, 452, 442, 432},
     ["name"] = "Maw of Souls",
     ["shortName"] = "MOS"
   },
   [7] = {
     ["id"] = 7855,
+    ["keystone_instance"] = 209,
+    ["instance_map_id"] = 1516,
+    ["lfd_activity_ids"] = {467, 454, 444, 434},
     ["name"] = "The Arcway",
     ["shortName"] = "ARC"
   },
   [8] = {
     ["id"] = 8040,
+    ["keystone_instance"] = 197,
+    ["instance_map_id"] = 1456,
+    ["lfd_activity_ids"] = {459, 445, 435, 425},
     ["name"] = "Eye of Azshara",
     ["shortName"] = "EOA"
   },
   [9] = {
     ["id"] = 8079,
+    ["keystone_instance"] = 210,
+    ["instance_map_id"] = 1571,
+    ["lfd_activity_ids"] = {466, 453, 443, 433},
     ["name"] = "Court of Stars",
     ["shortName"] = "COS"
   },
   [10] = {
     ["id"] = 8527,
+    ["keystone_instance"] = 233,
+    ["instance_map_id"] = 1677,
+    ["lfd_activity_ids"] = {476, 475, 474},
     ["name"] = "Cathedral of Eternal Night",
     ["shortName"] = "COEN"
   },
   [11] = {
     ["id"] = 8910,
+    ["keystone_instance"] = 239,
+    ["instance_map_id"] = 1753,
+    ["lfd_activity_ids"] = {486, 485, 484},
     ["name"] = "Seat of the Triumvirate",
     ["shortName"] = "SEAT"
   },
   [12] = {
     ["id"] = 999998,
+    ["keystone_instance"] = 227,
+    ["instance_map_id"] = 1651,
+    ["lfd_activity_ids"] = {471, 470},
     ["name"] = "Return to Karazhan: Lower",
     ["shortName"] = "LOWR"
   },
   [13] = {
     ["id"] = 999999,
+    ["keystone_instance"] = 234,
+    ["instance_map_id"] = 1651,
+    ["lfd_activity_ids"] = {473, 472},
     ["name"] = "Return to Karazhan: Upper",
     ["shortName"] = "UPPR"
   }
