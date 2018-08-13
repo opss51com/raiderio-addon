@@ -212,6 +212,7 @@ local EGG = {
 			["Aspyrox"] = "Raider.IO Creator",
 			["Ulsoga"] = "Raider.IO Creator",
 			["Dynrai"] = "Raider.IO Contributor",
+			["Divyn"] = "Raider.IO Contributor",
 			["Pepsiblue"] = "#millennialthings",
 		},
 		["Thrall"] = {
