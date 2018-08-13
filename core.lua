@@ -117,7 +117,7 @@ local COLOR_GREY = { r = 0.62, g = 0.62, b = 0.62 }
 local COLOR_GREEN = { r = 0, g = 1, b = 0 }
 
 -- defined constants
-local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_BATTLE_FOR_AZEROTH]
+local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
 local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
 local NUM_FIELDS_PER_CHARACTER = 3 -- number of fields in the database lookup table for each character
 local FACTION
