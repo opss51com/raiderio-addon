@@ -1012,21 +1012,23 @@ do
 					end
 
 					-- if the keyword "debug" is present in the command we show the query dialog
-					if text:find("[Dd][Ee][Bb][Uu][Gg]") then
+					local debugQuery = text:match("[Dd][Ee][Bb][Uu][Gg]%s*(.-)$")
+					if debugQuery then
 						if not ns.DEBUG_UI and ns.DEBUG_INIT then
-							if ns.DEBUG_INIT_WARNED then
-								ns.DEBUG_INIT()
-							else
-								ns.DEBUG_INIT_WARNED = 1
-								DEFAULT_CHAT_FRAME:AddMessage("This is an experimental feature. Once you are done using this tool, please |cffFFFFFF/reload|r your interface, or relog, in order to restore AutoCompletion functionality elsewhere in the interface. Type the command again to confirm and load the tool.", 1, 1, 0)
-							end
+							ns.DEBUG_INIT()
 						end
 						if ns.DEBUG_UI then
-							ns.DEBUG_UI:SetShown(not ns.DEBUG_UI:IsShown())
+							if strlenutf8(debugQuery) > 0 then
+								ns.DEBUG_UI:Show()
+								ns.DEBUG_UI:Search(debugQuery)
+							else
+								ns.DEBUG_UI:SetShown(not ns.DEBUG_UI:IsShown())
+							end
 						end
 						-- we do not wish to show the config dialog at this time
 						return
 					end
+
 				end
 
 				-- resume regular routine
