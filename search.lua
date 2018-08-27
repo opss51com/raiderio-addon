@@ -20,20 +20,22 @@ local function GetRealms(text, maxResults, cursorPosition)
 		if count >= maxResults then
 			break
 		end
-		data = ns.dataProvider["db" .. i]
-		if data then
-			for k, _ in pairs(data) do
-				if count >= maxResults then
-					break
-				end
-				kl = k:lower()
-				if not unique[kl] and kl:find(text, nil, true) == 1 then
-					unique[kl] = true
-					count = count + 1
-					temp[count] = {
-						name = k,
-						priority = 7,
-					}
+		for _, dataProviderGroup in pairs(ns.dataProvider) do
+			data = dataProviderGroup["db" .. i]
+			if data then
+				for k, _ in pairs(data) do
+					if count >= maxResults then
+						break
+					end
+					kl = k:lower()
+					if not unique[kl] and kl:find(text, nil, true) == 1 then
+						unique[kl] = true
+						count = count + 1
+						temp[count] = {
+							name = k,
+							priority = 7,
+						}
+					end
 				end
 			end
 		end
@@ -58,23 +60,25 @@ local function GetNames(text, maxResults, cursorPosition)
 		if rcount >= maxResults then
 			break
 		end
-		data = ns.dataProvider["db" .. i]
-		if data then
-			data = data[realm]
+		for _, dataProviderGroup in pairs(ns.dataProvider) do
+			data = dataProviderGroup["db" .. i]
 			if data then
-				count = #data
-				for j = 2, count do
-					if rcount >= maxResults then
-						break
-					end
-					name = data[j]
-					namel = name:lower()
-					if namel:find(text, nil, true) == 1 then
-						rcount = rcount + 1
-						temp[rcount] = {
-							name = name,
-							priority = 7,
-						}
+				data = data[realm]
+				if data then
+					count = #data
+					for j = 2, count do
+						if rcount >= maxResults then
+							break
+						end
+						name = data[j]
+						namel = name:lower()
+						if namel:find(text, nil, true) == 1 then
+							rcount = rcount + 1
+							temp[rcount] = {
+								name = name,
+								priority = 7,
+							}
+						end
 					end
 				end
 			end
