@@ -1,5 +1,4 @@
 ## Interface: 80000
-## X-Min-Interface: 70300
 ## Title: Raider.IO Mythic Plus
 ## Notes: Shows Raider.IO Mythic+ Scores in-game. Make sure to load one or more region DB.
 ## Author: Vladinator (Voidzone-Ravencrest) and Aspyr (Aspyrael-Skullcrusher)
@@ -25,7 +24,7 @@ locale/zhCN.lua
 locale/zhTW.lua
 
 core.lua
-debug.lua
+search.lua
 
 GuildBest.xml
 

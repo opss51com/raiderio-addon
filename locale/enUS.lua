@@ -45,6 +45,7 @@ L.ALLOW_ON_PLAYER_UNITS_DESC = "Right-click player unit frames to copy Raider.IO
 L.ALLOW_IN_LFD = "Allow in Dungeon Finder"
 L.ALLOW_IN_LFD_DESC = "Right-click groups or applicants in Dungeon Finder to copy Raider.IO Profile URL."
 L.MYTHIC_PLUS_DB_MODULES = "Mythic Plus Database Modules"
+L.RAIDING_DB_MODULES = "Raiding Database Modules"
 L.MODULE_AMERICAS = "Americas"
 L.MODULE_EUROPE = "Europe"
 L.MODULE_KOREA = "Korea"

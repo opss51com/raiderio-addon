@@ -8,6 +8,7 @@ local floor = math.floor
 local lshift = bit.lshift
 local rshift = bit.rshift
 local band = bit.band
+local bor = bit.bor
 local PAYLOAD_BITS = 13
 local PAYLOAD_MASK = lshift(1, PAYLOAD_BITS) - 1
 local LOOKUP_MAX_SIZE = floor(2^18-1)
@@ -80,7 +81,7 @@ local PLAYER_REGION
 -- db outdated
 local IS_DB_OUTDATED = {}
 local OUTDATED_DAYS = {}
-local OUTDATED_HOURS = {};
+local OUTDATED_HOURS = {}
 
 -- constants
 local CONST_REALM_SLUGS = ns.realmSlugs
@@ -90,6 +91,40 @@ local CONST_SCORE_TIER_SIMPLE = ns.scoreTiersSimple
 local CONST_DUNGEONS = ns.dungeons
 local CONST_AVERAGE_SCORE = ns.scoreLevelStats
 local L = ns.L
+
+-- data provider data types
+local CONST_PROVIDER_DATA_MYTHICPLUS = 1
+local CONST_PROVIDER_DATA_RAIDING = 2
+local CONST_PROVIDER_DATA_LIST = { CONST_PROVIDER_DATA_MYTHICPLUS, CONST_PROVIDER_DATA_RAIDING }
+
+-- output flags used to shape the table returned by the data provider
+local ProfileOutput = {
+	INVALID_FLAG = 0,
+	INCLUDE_LOWBIES = 1,
+	MOD_KEY_DOWN = 2,
+	MYTHICPLUS = 4,
+	RAIDING = 8,
+	TOOLTIP = 16,
+	ADD_PADDING = 32,
+	ADD_NAME = 64,
+	ADD_BEST_RUN = 128,
+	ADD_LFD = 256,
+	FOCUS_DUNGEON = 512,
+	FOCUS_KEYSTONE = 1024,
+}
+
+-- the default output flag combination used as fallback if user doesn't provide something meaningfull
+ProfileOutput.DEFAULT = bor(ProfileOutput.TOOLTIP, ProfileOutput.MYTHICPLUS, ProfileOutput.RAIDING)
+
+-- setup outdated struct
+do
+	for i = 1, #CONST_PROVIDER_DATA_LIST do
+		local dataType = CONST_PROVIDER_DATA_LIST[i]
+		IS_DB_OUTDATED[dataType] = {}
+		OUTDATED_DAYS[dataType] = {}
+		OUTDATED_HOURS[dataType] = {}
+	end
+end
 
 -- enum dungeons
 -- the for-loop serves two purposes: localize the shortName, and populate the enums
@@ -236,6 +271,7 @@ local GetInstanceStatus
 local GetRealmSlug
 local GetNameAndRealm
 local GetFaction
+local IsUnitMaxLevel
 local GetWeeklyAffix
 local GetAverageScore
 local GetStarsForUpgrades
@@ -439,6 +475,17 @@ do
 				return FACTION[faction]
 			end
 		end
+	end
+
+	-- returns true if we know the unit is max level or if we don't know (unit is invalid) we return using fallback value
+	function IsUnitMaxLevel(unit, fallback)
+		if UnitExists(unit) and UnitIsPlayer(unit) then
+			local level = UnitLevel(unit)
+			if level then
+				return level >= MAX_LEVEL
+			end
+		end
+		return fallback
 	end
 
 	-- returns affix ID based on the week
@@ -907,10 +954,17 @@ do
 
 			config:CreatePadding()
 			config:CreateHeadline(L.MYTHIC_PLUS_DB_MODULES)
-			local module1 = config:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_A", "RaiderIO_DB_US_H")
-			config:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_A", "RaiderIO_DB_EU_H")
-			config:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_A", "RaiderIO_DB_KR_H")
-			config:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_A", "RaiderIO_DB_TW_H")
+			local module1 = config:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_M_A", "RaiderIO_DB_US_M_H")
+			config:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_M_A", "RaiderIO_DB_EU_M_H")
+			config:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_M_A", "RaiderIO_DB_KR_M_H")
+			config:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_M_A", "RaiderIO_DB_TW_M_H")
+
+			config:CreatePadding()
+			config:CreateHeadline(L.RAIDING_DB_MODULES)
+			local module1 = config:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_R_A", "RaiderIO_DB_US_R_H")
+			config:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_R_A", "RaiderIO_DB_EU_R_H")
+			config:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_R_A", "RaiderIO_DB_KR_R_H")
+			config:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_R_A", "RaiderIO_DB_TW_R_H")
 
 			-- add save button and cancel buttons
 			local buttons = config:CreateWidget("Frame", 4, configButtonFrame)
@@ -935,7 +989,7 @@ do
 
 			-- adjust frame height dynamically
 			local children = {configFrame:GetChildren()}
-			local height = 40
+			local height = 50
 			for i = 1, #children do
 				height = height + children[i]:GetHeight() + 2
 			end
@@ -1011,18 +1065,18 @@ do
 						return
 					end
 
-					-- if the keyword "debug" is present in the command we show the query dialog
-					local debugQuery = text:match("[Dd][Ee][Bb][Uu][Gg]%s*(.-)$")
-					if debugQuery then
-						if not ns.DEBUG_UI and ns.DEBUG_INIT then
-							ns.DEBUG_INIT()
+					-- if the keyword "search" is present in the command we show the query dialog
+					local searchQuery = text:match("[Ss][Ee][Aa][Rr][Cc][Hh]%s*(.-)$")
+					if searchQuery then
+						if not ns.SEARCH_UI and ns.SEARCH_INIT then
+							ns.SEARCH_INIT()
 						end
-						if ns.DEBUG_UI then
-							if strlenutf8(debugQuery) > 0 then
-								ns.DEBUG_UI:Show()
-								ns.DEBUG_UI:Search(debugQuery)
+						if ns.SEARCH_UI then
+							if strlenutf8(searchQuery) > 0 then
+								ns.SEARCH_UI:Show()
+								ns.SEARCH_UI:Search(searchQuery)
 							else
-								ns.DEBUG_UI:SetShown(not ns.DEBUG_UI:IsShown())
+								ns.SEARCH_UI:SetShown(not ns.SEARCH_UI:IsShown())
 							end
 						end
 						-- we do not wish to show the config dialog at this time
@@ -1046,8 +1100,11 @@ end
 local AddProvider
 local AddClientCharacters
 local AddClientGuilds
+local GetFormattedScore
+local GetFormattedRunCount
 local GetScore
 local GetScoreColor
+local GetPlayerProfile
 do
 	-- unpack the payload
 	local function UnpackPayload(data)
@@ -1185,7 +1242,7 @@ do
 	end
 
 	-- caches the profile table and returns one using keys
-	local function CacheProviderData(name, realm, faction, index, data1, data2, data3)
+	local function CacheProviderData(dataProviderGroup, name, realm, faction, index, data1, data2, data3)
 		local cache = profileCache[index]
 
 		-- prefer to re-use cached profiles
@@ -1199,10 +1256,10 @@ do
 		-- TODO: can we make this table read-only? raw methods will bypass metatable restrictions we try to enforce
 		-- build this custom table in order to avoid users tainting the provider database
 		cache = {
-			region = dataProvider.region,
-			date = dataProvider.date,
-			season = dataProvider.season,
-			prevSeason = dataProvider.prevSeason,
+			region = dataProviderGroup.region,
+			date = dataProviderGroup.date,
+			season = dataProviderGroup.season,
+			prevSeason = dataProviderGroup.prevSeason,
 			name = name,
 			realm = realm,
 			faction = faction,
@@ -1298,7 +1355,11 @@ do
 	end
 
 	-- returns the profile of a given character, faction is optional but recommended for quicker lookups
-	local function GetProviderData(name, realm, faction)
+	local function GetProviderData(dataType, name, realm, faction)
+		-- shorthand for data provider group table
+		local dataProviderGroup = dataProvider[dataType]
+		-- if the provider isn't loaded we don't try and search for the data
+		if not dataProviderGroup then return end
 		-- figure out what faction tables we want to iterate
 		local a, b = 1, 2
 		if faction == 1 or faction == 2 then
@@ -1307,7 +1368,7 @@ do
 		-- iterate through the data
 		local db, lu, r, d, base, bucketID, bucket
 		for i = a, b do
-			db, lu = dataProvider["db" .. i], dataProvider["lookup" .. i]
+			db, lu = dataProviderGroup["db" .. i], dataProviderGroup["lookup" .. i]
 			-- sanity check that the data exists and is loaded, because it might not be for the requested faction
 			if db and lu then
 				r = db[realm]
@@ -1321,7 +1382,7 @@ do
 						bucketID = floor(base / LOOKUP_MAX_SIZE)
 						bucket = lu[bucketID + 1]
 						base = base - bucketID * LOOKUP_MAX_SIZE
-						return CacheProviderData(name, realm, i, i .. "-" .. bucketID .. "-" .. base, bucket[base], bucket[base + 1], bucket[base + 2])
+						return CacheProviderData(dataProviderGroup, name, realm, i, i .. "-" .. bucketID .. "-" .. base, bucket[base], bucket[base + 1], bucket[base + 2])
 					end
 				end
 			end
@@ -1330,7 +1391,7 @@ do
 
 	function AddProvider(data)
 		-- make sure the object is what we expect it to be like
-		assert(type(data) == "table" and type(data.name) == "string" and type(data.region) == "string" and type(data.faction) == "number", "Raider.IO has been requested to load a database that isn't supported.")
+		assert(type(data) == "table" and type(data.name) == "string" and type(data.data) == "number" and type(data.region) == "string" and type(data.faction) == "number", "Raider.IO has been requested to load a database that isn't supported.")
 		-- queue it for later inspection
 		dataProviderQueue[#dataProviderQueue + 1] = data
 	end
@@ -1348,6 +1409,23 @@ do
 		guildProviderCalled = true
 	end
 
+	-- returns score formatted for current or prev season
+	function GetFormattedScore(score, isPrevious)
+		if isPrevious then
+			return score .. " " .. L.PREV_SEASON_SUFFIX
+		end
+		return score
+	end
+
+	-- we only use 8 bits for a run, so decide a cap that we won't show beyond
+	function GetFormattedRunCount(count)
+		if count > 250 then
+			return '250+'
+		else
+			return count
+		end
+	end
+
 	-- retrieves the profile of a given unit, or name+realm query
 	function GetScore(arg1, arg2, forceFaction)
 		if not dataProvider then
@@ -1359,7 +1437,7 @@ do
 			if unit and (UnitLevel(unit) or 0) < MAX_LEVEL then
 				return
 			end
-			return GetProviderData(name, realm, type(forceFaction) == "number" and forceFaction or GetFaction(unit))
+			return GetProviderData(CONST_PROVIDER_DATA_MYTHICPLUS, name, realm, type(forceFaction) == "number" and forceFaction or GetFaction(unit))
 		end
 	end
 
@@ -1393,11 +1471,215 @@ do
 		end
 		return r, g, b
 	end
+
+	local function SortScoresByRole(a, b)
+		return a[2] > b[2]
+	end
+
+	-- reads the profile and formats the output using the provided output flags
+	local function ShapeProfileData(dataType, profile, outputFlag, ...)
+		local output = { dataType = dataType, profile = profile, outputFlag = outputFlag }
+		local addTooltip = band(outputFlag, ProfileOutput.TOOLTIP) == ProfileOutput.TOOLTIP
+
+		if addTooltip then
+			local i = 1
+
+			local isModKeyDown = band(outputFlag, ProfileOutput.MOD_KEY_DOWN) == ProfileOutput.MOD_KEY_DOWN
+			local addPadding = band(outputFlag, ProfileOutput.ADD_PADDING) == ProfileOutput.ADD_PADDING
+			local addName = band(outputFlag, ProfileOutput.ADD_NAME) == ProfileOutput.ADD_NAME
+			local addBestRun = band(outputFlag, ProfileOutput.ADD_BEST_RUN) == ProfileOutput.ADD_BEST_RUN
+			local addLFD = band(outputFlag, ProfileOutput.ADD_LFD) == ProfileOutput.ADD_LFD
+			local focusDungeon = band(outputFlag, ProfileOutput.FOCUS_DUNGEON) == ProfileOutput.FOCUS_DUNGEON
+			local focusKeystone = band(outputFlag, ProfileOutput.FOCUS_KEYSTONE) == ProfileOutput.FOCUS_KEYSTONE
+
+			if addPadding then
+				output[i] = " "
+				i = i + 1
+			end
+
+			if addName then
+				output[i] = format("%s (%s)", profile.name, profile.realm)
+				i = i + 1
+			end
+
+			if dataType == CONST_PROVIDER_DATA_MYTHICPLUS then
+
+				if profile.allScore >= 0 then
+					output[i] = {L.RAIDERIO_MP_SCORE, GetFormattedScore(profile.allScore, profile.isPrevAllScore), 1, 0.85, 0, GetScoreColor(profile.allScore)}
+					i = i + 1
+				else
+					output[i] = {L.RAIDERIO_MP_SCORE, L.UNKNOWN_SCORE, 1, 0.85, 0, 1, 1, 1}
+					i = i + 1
+				end
+
+				if profile.legionScore and profile.legionScore > 0 and (not profile.legionMainScore or profile.legionMainScore <= profile.legionScore) then
+					output[i] = {L.LEGION_SCORE, GetFormattedScore(profile.legionScore), 1, 1, 1, 1, 1, 1}
+					i = i + 1
+				elseif profile.legionMainScore and (not profile.legionScore or profile.legionMainScore > profile.legionScore) then
+					output[i] = {L.LEGION_MAIN_SCORE, GetFormattedScore(profile.legionMainScore), 1, 1, 1, 1, 1, 1}
+					i = i + 1
+				end
+
+				if addBestRun then
+					local highlightStr
+					if profile.keystoneFifteenPlus > 0 then
+						if profile.maxDungeonLevel < 15 then
+							highlightStr = L.KEYSTONE_COMPLETED_15
+						end
+					elseif profile.keystoneTenPlus > 0 then
+						if profile.maxDungeonLevel < 10 then
+							highlightStr = L.KEYSTONE_COMPLETED_10
+						end
+					end
+					if not highlightStr and profile.maxDungeonLevel > 0 then
+						highlightStr = "+" .. profile.maxDungeonLevel .. " " .. profile.maxDungeonNameLocale
+					end
+					if highlightStr then
+						output[i] = {L.BEST_RUN, highlightStr, 1, 1, 1, GetScoreColor(profile.allScore)}
+						i = i + 1
+					end
+					if profile.keystoneFifteenPlus > 0 then
+						output[i] = {L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
+					end
+					if profile.keystoneTenPlus > 0 and (profile.keystoneFifteenPlus == 0 or showExtendedTooltip) then
+						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
+						i = i + 1
+					end
+				end
+
+				if isModKeyDown then
+					local scores = {}
+					local j = 1
+					if profile.tankScore then
+						scores[j] = {L.TANK_SCORE, profile.tankScore}
+						j = j + 1
+					end
+					if profile.healScore then
+						scores[j] = {L.HEALER_SCORE, profile.healScore}
+						j = j + 1
+					end
+					if profile.dpsScore then
+						scores[j] = {L.DPS_SCORE, profile.dpsScore}
+						j = j + 1
+					end
+					table.sort(scores, SortScoresByRole)
+					for i = 1, #scores do
+						if scores[i][2] > 0 then
+							output[i] = {scores[i][1], scores[i][2], 1, 1, 1, GetScoreColor(scores[i][2])}
+							i = i + 1
+						end
+					end
+				end
+
+				if addLFD then
+					-- TODO: use "..." data passed down so we know what to build here
+				end
+
+				if focusDungeon then
+					-- TODO: use "..." data passed down so we know what to build here
+				end
+
+				if focusKeystone then
+					-- TODO: use "..." data passed down so we know what to build here
+				end
+
+				if addonConfig.showMainsScore and profile.mainScore > profile.allScore then
+					output[i] = {L.MAINS_SCORE, profile.mainScore, 1, 1, 1, GetScoreColor(profile.mainScore)}
+					i = i + 1
+				end
+
+			end
+
+			if dataType == CONST_PROVIDER_DATA_RAIDING then
+				-- TODO
+			end
+
+			output.length = i - 1
+
+			if IS_DB_OUTDATED[dataType][profile.faction] then
+				output[i] = {format(L.OUTDATED_DATABASE, OUTDATED_DAYS[dataType][profile.faction]), 1, 1, 1, false}
+				i = i + 1
+			end
+
+			local t = EGG[profile.region]
+			if t then
+				t = t[profile.realm]
+				if t then
+					t = t[profile.name]
+					if t then
+						output[i] = {t, 0.9, 0.8, 0.5, false}
+						i = i + 1
+					end
+				end
+			end
+
+		end
+
+		return output
+	end
+
+	-- retrieves the complete player profile from all providers
+	function GetPlayerProfile(outputFlag, ...)
+		if not dataProvider then
+			return
+		end
+		-- must be a number 0 or larger
+		if type(outputFlag) ~= "number" or outputFlag < 1 then
+			outputFlag = bor(ProfileOutput.DEFAULT, (addon.modKey or addonConfig.alwaysExtendTooltip) and ProfileOutput.MOD_KEY_DOWN or 0)
+		end
+		-- read the first args and figure out the request
+		local arg1, arg2, arg3, arg4, arg5 = ...
+		local passThroughAt, passThroughArg1, passThroughArg2, passThroughArg1Table
+		local queryName, queryRealm, queryFaction
+		if type(arg1) == "string" and type(arg2) == "string" and type(arg3) == "number" then
+			passThroughAt, passThroughArg1, passThroughArg2 = 4, arg4, arg5
+			queryName, queryRealm, queryFaction = arg1, arg2, arg3
+		elseif type(arg1) == "string" and type(arg2) == "string" then
+			passThroughAt, passThroughArg1, passThroughArg2 = 3, arg3, arg4
+			queryName, queryRealm, queryFaction = arg1, arg2, nil
+		elseif type(arg1) == "string" and type(arg2) == "number" then
+			passThroughAt, passThroughArg1, passThroughArg2 = 3, arg3, arg4
+			queryName, queryRealm, queryFaction = arg1, nil, arg2
+		else
+			passThroughAt, passThroughArg1, passThroughArg2 = 2, arg2, arg3
+			queryName, queryRealm, queryFaction = arg1, nil, nil
+		end
+		-- is the pass args an object? if so we pass it directly
+		if type(passThroughArg1) == "table" and passThroughArg2 == nil then
+			passThroughArg1Table = passThroughArg1
+		end
+		-- lookup name, realm and potentially unit identifier
+		local name, realm, unit = GetNameAndRealm(queryName, queryRealm)
+		if name and realm then
+			-- unless the flag to specifically ignore the level check, do make sure we only query max level players
+			if not IsUnitMaxLevel(unit, true) and band(outputFlag, ProfileOutput.INCLUDE_LOWBIES) ~= ProfileOutput.INCLUDE_LOWBIES then
+				return
+			end
+			-- establish faction for the lookups
+			local faction = type(queryFaction) == "number" and queryFaction or GetFaction(unit)
+			-- retrive data from the various data types
+			local profile = {}
+			local hasData
+			for i = 1, #CONST_PROVIDER_DATA_LIST do
+				local dataType = CONST_PROVIDER_DATA_LIST[i]
+				if (dataType == CONST_PROVIDER_DATA_MYTHICPLUS and band(outputFlag, ProfileOutput.MYTHICPLUS) == ProfileOutput.MYTHICPLUS) or (dataType == CONST_PROVIDER_DATA_RAIDING and band(outputFlag, ProfileOutput.RAIDING) == ProfileOutput.RAIDING) then
+					local data = GetProviderData(dataType, name, realm, faction)
+					if data then
+						hasData = true
+						if passThroughArg1Table then
+							profile[dataType] = ShapeProfileData(dataType, data, outputFlag, passThroughArg1Table)
+						else
+							profile[dataType] = ShapeProfileData(dataType, data, outputFlag, select(passThroughAt, ...))
+						end
+					end
+				end
+			end
+			return hasData and profile or nil
+		end
+	end
 end
 
 -- tooltips
-local GetFormattedScore
-local GetFormattedRunCount
 local AppendGameTooltip
 local UpdateAppendedGameTooltip
 local AppendAveragePlayerScore
@@ -1405,23 +1687,6 @@ local AddLegionScore
 do
 	local function sortRoleScores(a, b)
 		return a[2] > b[2]
-	end
-
-	-- returns score formatted for current or prev season
-	function GetFormattedScore(score, isPrevious)
-		if isPrevious then
-			return score .. " " .. L.PREV_SEASON_SUFFIX
-		end
-		return score
-	end
-
-	-- we only use 8 bits for a run, so decide a cap that we won't show beyond
-	function GetFormattedRunCount(count)
-		if count > 250 then
-			return '250+'
-		else
-			return count
-		end
 	end
 
 	function AddLegionScore(tooltip, profile)
@@ -1610,8 +1875,8 @@ do
 				AppendAveragePlayerScore(tooltip, focusOnKeystoneLevel or searchLevel)
 			end
 
-			if IS_DB_OUTDATED[profile.faction] then
-				tooltip:AddLine(format(L.OUTDATED_DATABASE, OUTDATED_DAYS[profile.faction]), 1, 1, 1, false)
+			if IS_DB_OUTDATED[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] then
+				tooltip:AddLine(format(L.OUTDATED_DATABASE, OUTDATED_DAYS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 1, 1, 1, false)
 			end
 
 			local t = EGG[profile.region]
@@ -1818,12 +2083,12 @@ do
 			profileTooltip:AddDoubleLine(dungeon.shortName, keyLevel, colorDungeonName.r, colorDungeonName.g, colorDungeonName.b, colorDungeonLevel.r, colorDungeonLevel.g, colorDungeonLevel.b)
 		end
 
-		if OUTDATED_DAYS[profile.faction] > 1 then
+		if OUTDATED_DAYS[CONST_PROVIDER_DATA_MYTHICPLUS] and OUTDATED_DAYS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] > 1 then
 			profileTooltip:AddLine(" ")
-			profileTooltip:AddLine(format(L.OUTDATED_DATABASE, OUTDATED_DAYS[profile.faction]), 0.8, 0.8, 0.8, false)
-		elseif OUTDATED_HOURS[profile.faction] > 12 then
+			profileTooltip:AddLine(format(L.OUTDATED_DATABASE, OUTDATED_DAYS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
+		elseif OUTDATED_HOURS[CONST_PROVIDER_DATA_MYTHICPLUS] and OUTDATED_HOURS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] > 12 then
 			profileTooltip:AddLine(" ")
-			profileTooltip:AddLine(format(L.OUTDATED_DATABASE_HOURS, OUTDATED_HOURS[profile.faction]), 0.8, 0.8, 0.8, false)
+			profileTooltip:AddLine(format(L.OUTDATED_DATABASE_HOURS, OUTDATED_HOURS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
 		end
 
 		profileTooltip:Show()
@@ -1870,12 +2135,12 @@ do
 end
 
 -- Guild Best
-GuildBestMixin = {}
-GuildBestRunMixin = {}
-GuildSwitchMixin = {}
-SwitchGuildBestMixin = {}
+RaiderIO_GuildBestMixin = {}
+RaiderIO_GuildBestRunMixin = {}
+RaiderIO_GuildSwitchMixin = {}
+RaiderIO_SwitchGuildBestMixin = {}
 do
-	function SwitchGuildBestMixin:OnLoad()
+	function RaiderIO_SwitchGuildBestMixin:OnLoad()
 		self.text:SetFontObject("GameFontNormalTiny2")
 		self.text:SetText(L["CHECKBOX_DISPLAY_WEEKLY"])
 		self.text:SetPoint("LEFT", 15, 0)
@@ -1883,17 +2148,17 @@ do
 		self:SetSize(15, 15)
 	end
 
-	function SwitchGuildBestMixin:OnShow()
+	function RaiderIO_SwitchGuildBestMixin:OnShow()
 		self:SetChecked(addonConfig.displayWeeklyGuildBest)
 	end
 
-	function GuildBestMixin:SwitchBestRun()
+	function RaiderIO_GuildBestMixin:SwitchBestRun()
 		addonConfig.displayWeeklyGuildBest = not addonConfig.displayWeeklyGuildBest
 
 		self:SetUp(GetGuildFullname("player"))
 	end
 
-	function GuildBestMixin:SetUp(guildFullname)
+	function RaiderIO_GuildBestMixin:SetUp(guildFullname)
 		local bestRuns = guildBest[guildFullname] or {}
 
 		local keyBest = "season_best"
@@ -1929,7 +2194,7 @@ do
 		end
 	end
 
-	function GuildBestMixin:Reset()
+	function RaiderIO_GuildBestMixin:Reset()
 		self.GuildBestNoRun:Hide()
 		self.GuildBestNoRun.Text:SetText(L["NO_GUILD_RECORD"])
 		if self.GuildBests then
@@ -1939,7 +2204,7 @@ do
 		end
 	end
 
-	function GuildBestRunMixin:SetUp(runInfo)
+	function RaiderIO_GuildBestRunMixin:SetUp(runInfo)
 		self.runInfo = runInfo
 
 		self.CharacterName:SetText(GetDungeonWithData("id", self.runInfo.zone_id).shortNameLocale)
@@ -1951,7 +2216,7 @@ do
 		self.Level:SetText(GetStarsForUpgrades(self.runInfo.upgrades) .. self.runInfo.level)
 	end
 
-	function GuildBestRunMixin:OnEnter()
+	function RaiderIO_GuildBestRunMixin:OnEnter()
 		GameTooltip:SetOwner(self, "ANCHOR_LEFT");
 
 		GameTooltip:SetText(C_ChallengeMode.GetMapUIInfo(GetDungeonWithData("id", self.runInfo.zone_id).keystone_instance), 1, 1, 1);
@@ -2014,8 +2279,8 @@ do
 		ApplyHooks()
 	end
 
-	local function updateOutdatedDb(faction, date)
-		local year, month, day, hours, minutes, seconds = date:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).*Z$")
+	local function IsProviderOutdated(provider)
+		local year, month, day, hours, minutes, seconds = provider.date:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).*Z$")
 		-- parse the ISO timestamp to unix time
 		local ts = time({ year = year, month = month, day = day, hour = hours, min = minutes, sec = seconds })
 		-- calculate the timezone offset between the user and UTC+0
@@ -2023,9 +2288,10 @@ do
 		-- find elapsed seconds since database update and account for the timezone offset
 		local diff = time() - ts - offset
 		-- figure out of the DB is outdated or not by comparing to our threshold
-		IS_DB_OUTDATED[faction] = diff >= OUTDATED_SECONDS
-		OUTDATED_HOURS[faction] = floor(diff/ 3600 + 0.5);
-		OUTDATED_DAYS[faction] = floor(diff / 86400 + 0.5);
+		local isOutdated = diff >= OUTDATED_SECONDS
+		local outdatedHours = floor(diff/ 3600 + 0.5)
+		local outdatedDays = floor(diff / 86400 + 0.5)
+		return isOutdated, outdatedHours, outdatedDays
 	end
 
 	-- we have logged in and character data is available
@@ -2034,60 +2300,77 @@ do
 		PLAYER_FACTION = GetFaction("player")
 		PLAYER_REGION = GetRegion()
 
-		local firstDataProvider = {}
+		-- we can now create the empty table that contains all providers and provider groups
+		dataProvider = {}
+
+		-- for notification purposes after we're done iterating the provider queue
+		local isAnyProviderDesynced
+		local isAnyProviderOutdated
 
 		-- pick the data provider that suits the players region
 		for i = #dataProviderQueue, 1, -1 do
 			local data = dataProviderQueue[i]
+			local dataType = data.data
+
 			-- is this provider relevant?
 			if data.region == PLAYER_REGION then
-				-- Is the provider up to date ?
-				updateOutdatedDb(data.faction, data.date)
+				local dataProviderGroup = dataProvider[dataType]
 
-				-- append provider to the table
-				if dataProvider then
-					if (firstDataProvider.region ~= data.region or firstDataProvider.faction ~= data.faction) and firstDataProvider.date ~= data.date then
-						-- Warning if the data is out of sync between faction
-						DEFAULT_CHAT_FRAME:AddMessage(format(L.OUT_OF_SYNC_DATABASE_S, addonName), 1, 1, 0)
+				-- is the provider up to date?
+				local isOutdated, outdatedHours, outdatedDays = IsProviderOutdated(data)
+				IS_DB_OUTDATED[dataType][data.faction] = isOutdated
+				OUTDATED_HOURS[dataType][data.faction] = outdatedHours
+				OUTDATED_DAYS[dataType][data.faction] = outdatedDays
+				isAnyProviderOutdated = isOutdated and math.max(outdatedDays, isAnyProviderOutdated) or isAnyProviderOutdated
+
+				-- append provider to the group
+				if dataProviderGroup then
+					if dataProviderGroup.faction == data.faction and dataProviderGroup.date ~= data.date then
+						isAnyProviderDesynced = true
+					end
+					if not dataProviderGroup.db1 then
+						dataProviderGroup.db1 = data.db1
+					end
+					if not dataProviderGroup.db2 then
+						dataProviderGroup.db2 = data.db2
+					end
+					if not dataProviderGroup.lookup1 then
+						dataProviderGroup.lookup1 = data.lookup1
+					end
+					if not dataProviderGroup.lookup2 then
+						dataProviderGroup.lookup2 = data.lookup2
 					end
 
-					if not dataProvider.db1 then
-						dataProvider.db1 = data.db1
-					end
-					if not dataProvider.db2 then
-						dataProvider.db2 = data.db2
-					end
-					if not dataProvider.lookup1 then
-						dataProvider.lookup1 = data.lookup1
-					end
-					if not dataProvider.lookup2 then
-						dataProvider.lookup2 = data.lookup2
-					end
 				else
-					dataProvider = data
-					firstDataProvider = {["date"] = data.date, ["region"] = data.region, ["faction"] = data.faction }
-
-					-- debug.lua needs this for querying (also adding the tooltip bit because for now only these two are needed for debug.lua to function...)
-					ns.dataProvider = dataProvider
-					ns.AppendGameTooltip = AppendGameTooltip
+					dataProviderGroup = data
+					dataProvider[dataType] = dataProviderGroup
 				end
+
 			else
 				-- disable the provider addon from loading in the future
 				DisableAddOn(data.name)
 				-- wipe the table to free up memory
-				wipe(data)
+				table.wipe(data)
 			end
+
 			-- remove reference from the queue
 			dataProviderQueue[i] = nil
 		end
 
-		if IS_DB_OUTDATED[PLAYER_FACTION] then
-			DEFAULT_CHAT_FRAME:AddMessage(format(L.OUTDATED_DATABASE_S, addonName, OUTDATED_DAYS[PLAYER_FACTION]), 1, 1, 0)
+		if isAnyProviderDesynced then
+			DEFAULT_CHAT_FRAME:AddMessage(format(L.OUT_OF_SYNC_DATABASE_S, addonName), 1, 1, 0)
+		elseif isAnyProviderOutdated then
+			DEFAULT_CHAT_FRAME:AddMessage(format(L.OUTDATED_DATABASE_S, addonName, isAnyProviderOutdated), 1, 1, 0)
 		end
 
 		-- hide the provider functions from the public API
 		_G.RaiderIO.AddProvider = nil
 		_G.RaiderIO.AddClientCharacters = nil
+		_G.RaiderIO.AddClientGuilds = nil
+
+		-- debug.lua needs this for querying (also adding the tooltip bit because for now only these two are needed for debug.lua to function...)
+		ns.dataProvider = dataProvider
+		ns.AppendGameTooltip = AppendGameTooltip
 	end
 
 	-- we enter the world (after a loading screen, int/out of instances)
@@ -2881,18 +3164,20 @@ end
 
 -- API
 _G.RaiderIO = {
-	-- Calling GetProfile requires either a unit, or you to provide a name and realm, optionally also a faction. (1 = Alliance, 2 = Horde)
-	-- RaiderIO.GetProfile(unit)
-	-- RaiderIO.GetProfile("Name-Realm"[, nil, 1|2])
-	-- RaiderIO.GetProfile("Name", "Realm"[, 1|2])
-	GetProfile = GetScore,
+	-- Calling GetPlayerProfile returns a table with the data requested for that unit or player by name and realm. Faction is optional and is either 0 = Either, 1 = Alliance, 2 = Horde.
+	-- outputFlag is a bitwise combination of values from the ProfileOutput table. Combine different flags to specify the output data the function returns.
+	-- RaiderIO.GetPlayerProfile(outputFlag, unit)
+	-- RaiderIO.GetPlayerProfile(outputFlag, "Name-Realm"[, 0|1|2])
+	-- RaiderIO.GetPlayerProfile(outputFlag, "Name", "Realm"[, 0|1|2])
+	ProfileOutput = ProfileOutput,
+	GetPlayerProfile = GetPlayerProfile,
 	-- Calling GetFaction requires a unit and returns you 1 if it's Alliance, 2 if Horde, otherwise nil.
 	-- Calling GetScoreColor requires a Mythic+ score to be passed (a number value) and it returns r, g, b for that score.
 	-- RaiderIO.GetScoreColor(1234)
 	GetScoreColor = GetScoreColor,
-
 	-- DEPRECATED
 	GetScore = GetScore,
+	GetProfile = GetScore,
 }
 
 -- PLEASE DO NOT USE (we need it public for the sake of the database modules)
