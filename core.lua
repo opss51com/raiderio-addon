@@ -47,6 +47,7 @@ local addonConfig = {
 -- session
 local uiHooks = {}
 local profileCache = {}
+local profileCacheTooltip = {}
 local configParentFrame
 local configButtonFrame
 local configHeaderFrame
@@ -63,12 +64,10 @@ local guildBest = {}
 
 -- tooltip related hooks and storage
 local tooltipArgs = {}
-local playerTooltip
 
 local tooltipHooks = {
 	Wipe = function()
-		wipe(tooltipArgs)
-		playerTooltip = nil
+		table.wipe(tooltipArgs)
 	end
 }
 
@@ -152,7 +151,7 @@ local COLOR_GREY = { r = 0.62, g = 0.62, b = 0.62 }
 local COLOR_GREEN = { r = 0, g = 1, b = 0 }
 
 -- defined constants
-local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_LEGION]
+local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_BATTLE_FOR_AZEROTH]
 local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
 local NUM_FIELDS_PER_CHARACTER = 3 -- number of fields in the database lookup table for each character
 local FACTION
@@ -1597,7 +1596,7 @@ do
 			output.length = i - 1
 
 			if IS_DB_OUTDATED[dataType][profile.faction] then
-				output[i] = {format(L.OUTDATED_DATABASE, OUTDATED_DAYS[dataType][profile.faction]), 1, 1, 1, false}
+				output[i] = {format(L.OUTDATED_DATABASE, OUTDATED_DAYS[dataType][profile.faction]), "", 1, 1, 1, 1, 1, 1, false}
 				i = i + 1
 			end
 
@@ -1607,7 +1606,7 @@ do
 				if t then
 					t = t[profile.name]
 					if t then
-						output[i] = {t, 0.9, 0.8, 0.5, false}
+						output[i] = {t, "", 0.9, 0.8, 0.5, 1, 1, 1, false}
 						i = i + 1
 					end
 				end
@@ -1625,7 +1624,7 @@ do
 		end
 		-- must be a number 0 or larger
 		if type(outputFlag) ~= "number" or outputFlag < 1 then
-			outputFlag = bor(ProfileOutput.DEFAULT, (addon.modKey or addonConfig.alwaysExtendTooltip) and ProfileOutput.MOD_KEY_DOWN or 0)
+			outputFlag = bor(ProfileOutput.DEFAULT, addon:IsModifierKeyDown() and ProfileOutput.MOD_KEY_DOWN or 0)
 		end
 		-- read the first args and figure out the request
 		local arg1, arg2, arg3, arg4, arg5 = ...
@@ -1651,6 +1650,16 @@ do
 		-- lookup name, realm and potentially unit identifier
 		local name, realm, unit = GetNameAndRealm(queryName, queryRealm)
 		if name and realm then
+			-- profile GUID for this particular request
+			local profileGUID = realm .. "-" .. name .. "-" .. outputFlag
+			-- return cached table if it exists, and if we are capable of caching this particular tooltip
+			local canCacheProfile = band(outputFlag, ProfileOutput.ADD_LFD) ~= ProfileOutput.ADD_LFD and band(outputFlag, ProfileOutput.FOCUS_DUNGEON) ~= ProfileOutput.FOCUS_DUNGEON and band(outputFlag, ProfileOutput.FOCUS_KEYSTONE) ~= ProfileOutput.FOCUS_KEYSTONE and true or false
+			if canCacheProfile then
+				local cachedProfile = profileCacheTooltip[profileGUID]
+				if cachedProfile then
+					return cachedProfile, true, true
+				end
+			end
 			-- unless the flag to specifically ignore the level check, do make sure we only query max level players
 			if not IsUnitMaxLevel(unit, true) and band(outputFlag, ProfileOutput.INCLUDE_LOWBIES) ~= ProfileOutput.INCLUDE_LOWBIES then
 				return
@@ -1659,7 +1668,7 @@ do
 			local faction = type(queryFaction) == "number" and queryFaction or GetFaction(unit)
 			-- retrive data from the various data types
 			local profile = {}
-			local hasData
+			local hasData = false
 			for i = 1, #CONST_PROVIDER_DATA_LIST do
 				local dataType = CONST_PROVIDER_DATA_LIST[i]
 				if (dataType == CONST_PROVIDER_DATA_MYTHICPLUS and band(outputFlag, ProfileOutput.MYTHICPLUS) == ProfileOutput.MYTHICPLUS) or (dataType == CONST_PROVIDER_DATA_RAIDING and band(outputFlag, ProfileOutput.RAIDING) == ProfileOutput.RAIDING) then
@@ -1674,7 +1683,11 @@ do
 					end
 				end
 			end
-			return hasData and profile or nil
+			-- cache profile before returning, if we are allowed to cache this particular tooltip
+			if canCacheProfile then
+				profileCacheTooltip[profileGUID] = profile
+			end
+			return profile, hasData, canCacheProfile
 		end
 	end
 end
@@ -1684,6 +1697,7 @@ local AppendGameTooltip
 local UpdateAppendedGameTooltip
 local AppendAveragePlayerScore
 local AddLegionScore
+local ShowTooltip
 do
 	local function sortRoleScores(a, b)
 		return a[2] > b[2]
@@ -1708,7 +1722,8 @@ do
 			tooltip:HookScript("OnHide", tooltipHooks.Wipe)
 		end
 
-		tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6] = forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex, focusOnKeystoneLevel
+		-- assign the current function args for later use
+		tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6], tooltipArgs[7] = nil, nil, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex, focusOnKeystoneLevel
 
 		-- sanity check that the profile exists
 		if profile then
@@ -1716,11 +1731,10 @@ do
 			addon:MODIFIER_STATE_CHANGED(true)
 
 			-- assign the current function args for later use
-			playerTooltip = tooltip
-			tooltipArgs[1] = arg1
+			tooltipArgs[1], tooltipArgs[2] = tooltip, arg1
 
 			-- should we show the extended version of the data?
-			local showExtendedTooltip = addon.modKey or addonConfig.alwaysExtendTooltip
+			local showExtendedTooltip = addon:IsModifierKeyDown()
 
 			-- add padding line if it looks nicer on the tooltip, also respect users preference
 			if not forceNoPadding then
@@ -1905,12 +1919,18 @@ do
 
 	-- triggers a tooltip update of the current visible tooltip
 	function UpdateAppendedGameTooltip()
-		-- sanity check that the args exist
-		if not playerTooltip or not playerTooltip:GetOwner() then return end
 		-- unpack the args
-		local tooltip = playerTooltip
-		local arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex, focusOnKeystoneLevel = tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6]
-
+		local arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 = tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6], tooltipArgs[7], tooltipArgs[8]
+		local tooltip
+		if arg1 == true then
+			tooltip = arg2
+		elseif arg1 == false then
+			tooltip = arg2[1]
+		else
+			tooltip = arg1
+		end
+		-- sanity check
+		if not tooltip or not tooltip:GetOwner() then return end
 		-- units only need to SetUnit to re-draw the tooltip properly
 		local _, unit = tooltip:GetUnit()
 		if unit then
@@ -1949,7 +1969,13 @@ do
 			tooltip:SetAnchorType(a1, a2, a3)
 		end
 		-- finalize by appending our tooltip on the bottom
-		AppendGameTooltip(tooltip, arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex, focusOnKeystoneLevel)
+		if arg1 == true then
+			ShowTooltip(arg2, arg3, arg4, arg5, arg6, arg7, arg8)
+		elseif arg1 == false then
+			ShowTooltip(unpack(arg2))
+		else
+			AppendGameTooltip(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
+		end
 	end
 
 	function AppendAveragePlayerScore(tooltip, keystoneLevel, addBlankLine)
@@ -1963,6 +1989,54 @@ do
 				tooltip:AddDoubleLine(format(L.RAIDERIO_AVERAGE_PLAYER_SCORE, keystoneLevel), averageScore, 1, 1, 1, GetScoreColor(averageScore))
 			end
 		end
+	end
+
+	-- draws the tooltip based on the returned profile data from the data providers
+	local function AppendTooltipLines(tooltip, profile)
+		local count = #profile
+		local added
+		-- iterate the data returned from the modules
+		for i = 1, count do
+			local output = profile[i]
+			-- iterate everything if this is the last module output, otherwise limit ourselves to the defined length
+			for j = 1, i == count and #output or output.length or #output do
+				-- the line can be a table, thus a double line, or a left aligned line
+				local line = output[j]
+				if type(line) == "table" then
+					tooltip:AddDoubleLine(line[1], line[2], line[3], line[4], line[5], line[6], line[7], line[8], line[9], line[10])
+				else
+					tooltip:AddLine(line)
+				end
+				-- we know the tooltip was build successfully
+				added = true
+			end
+		end
+		return added
+	end
+
+	-- shows data on the provided tooltip widget for the particular player
+	function ShowTooltip(tooltip, outputFlag, unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, arg1, ...)
+		-- setup tooltip hook
+		if not tooltipHooks[tooltip] then
+			tooltipHooks[tooltip] = true
+			tooltip:HookScript("OnTooltipCleared", tooltipHooks.Wipe)
+			tooltip:HookScript("OnHide", tooltipHooks.Wipe)
+		end
+		-- get the player profile
+		local profile, hasProfile, isCached = GetPlayerProfile(outputFlag, unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, arg1, ...)
+		-- sanity check
+		if hasProfile and AppendTooltipLines(tooltip, profile) then
+			-- store tooltip args for refresh purposes
+			if isCached then
+				tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6], tooltipArgs[7], tooltipArgs[8] = true, tooltip, outputFlag, unitOrNameOrNameAndRealm, realmOrNil, factionOrNil
+			else
+				tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6], tooltipArgs[7], tooltipArgs[8] = false, {tooltip, outputFlag, unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, arg1, ...}
+			end
+			-- resize tooltip to fit the new contents
+			tooltip:Show()
+			return true
+		end
+		return false
 	end
 end
 
@@ -1994,7 +2068,7 @@ do
 			if not addonConfig.enableProfileModifier then
 				arg1 = "player"
 			else
-				if (not addonConfig.inverseProfileModifier and not addon.modKey) or (addonConfig.inverseProfileModifier and addon.modKey) then
+				if (not addonConfig.inverseProfileModifier and not addon:IsModifierKeyDown(true)) or (addonConfig.inverseProfileModifier and addon:IsModifierKeyDown(true)) then
 					arg1 = "player"
 				end
 			end
@@ -2376,7 +2450,8 @@ do
 	-- we enter the world (after a loading screen, int/out of instances)
 	function addon:PLAYER_ENTERING_WORLD()
 		-- we wipe the cached profiles in between loading screens, this seems like a good way get rid of memory use over time
-		wipe(profileCache)
+		table.wipe(profileCache)
+		table.wipe(profileCacheTooltip)
 	end
 
 	-- modifier key is toggled, update the tooltip if needed
@@ -2392,6 +2467,13 @@ do
 		if m ~= l and skipUpdatingTooltip ~= true then
 			UpdateAppendedGameTooltip()
 		end
+	end
+
+	function addon:IsModifierKeyDown(skipConfig)
+		if skipConfig then
+			return IsModifierKeyDown()
+		end
+		return addonConfig.alwaysExtendTooltip or IsModifierKeyDown()
 	end
 end
 
@@ -2467,7 +2549,7 @@ do
 			end
 			-- TODO: summoning portals don't always trigger OnTooltipSetUnit properly, leaving the unit tooltip on the portal object
 			local _, unit = self:GetUnit()
-			AppendGameTooltip(self, unit, nil, nil, GetFaction(unit), nil)
+			ShowTooltip(self, bor(ProfileOutput.DEFAULT, ProfileOutput.ADD_PADDING, addon:IsModifierKeyDown() and ProfileOutput.MOD_KEY_DOWN or 0), unit, nil, GetFaction(unit))
 		end
 		GameTooltip:HookScript("OnTooltipSetUnit", OnTooltipSetUnit)
 		return 1
@@ -2622,7 +2704,7 @@ do
 			end
 			if fullName and level and level >= MAX_LEVEL then
 				GameTooltip:SetOwner(FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
-				if not AppendGameTooltip(GameTooltip, fullName, true, true, faction, nil) then
+				if not ShowTooltip(GameTooltip, bor(ProfileOutput.DEFAULT, addon:IsModifierKeyDown() and ProfileOutput.MOD_KEY_DOWN or 0), fullName, nil, faction) then
 					GameTooltip:Hide()
 				end
 			else
