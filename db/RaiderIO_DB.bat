@@ -27,11 +27,11 @@ for %%r in (
 		call :LoCase lt
 		call :UnScor lt
 
-		if !t1! neq M set t1=_!t1!_
-		if !t1! equ M set t1=_
+		if !t1! neq M set t1=_!t1!
+		if !t1! equ M set t1=
 
-		if !lt! neq mythicplus set lt=_!lt!_
-		if !lt! equ mythicplus set lt=_
+		if !lt! neq mythicplus set lt=_!lt!
+		if !lt! equ mythicplus set lt=
 
 		for %%f in (
 			"A	Alliance"
@@ -41,7 +41,7 @@ for %%r in (
 			set f1=!f:~1,1!
 			set f2=!f:~3,-1!
 
-			set d=.\RaiderIO_DB_!r1!!t1!!f1!
+			set d=.\RaiderIO_DB_!r1!_!f1!!t1!
 			set f=.\!d!\!d!.toc
 
 			set lr=!r1!
@@ -61,8 +61,8 @@ for %%r in (
 			echo ## X-Region: !r2!>>"!f!"
 			echo ## X-Faction: !f2!>>"!f!"
 			echo ## X-Website: https:^/^/raider.io>>"!f!"
-			echo ../!toc_addon!/db/db_!lr!!lt!!lf!_characters.lua>>"!f!"
-			echo ../!toc_addon!/db/db_!lr!!lt!!lf!_lookup.lua>>"!f!"
+			echo ../!toc_addon!/db/db_!lr!_!lf!!lt!_characters.lua>>"!f!"
+			echo ../!toc_addon!/db/db_!lr!_!lf!!lt!_lookup.lua>>"!f!"
 		)
 	)
 )

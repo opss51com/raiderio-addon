@@ -1,11 +1,11 @@
 ## Interface: 80000
-## Title: Raider.IO |cffFFFFFFRaiding|r (Taiwan - Alliance)
+## Title: Raider.IO |cffFFFFFFRaiding|r (Taiwan - Horde)
 ## Author: Vladinator (Voidzone-Ravencrest) and Aspyr (Aspyrael-Skullcrusher)
 ## Dependencies: RaiderIO
 ## DefaultState: enabled
 ## X-Type: Raiding
 ## X-Region: Taiwan
-## X-Faction: Alliance
+## X-Faction: Horde
 ## X-Website: https://raider.io
-../RaiderIO/db/db_tw_raiding_alliance_characters.lua
-../RaiderIO/db/db_tw_raiding_alliance_lookup.lua
+../RaiderIO/db/db_tw_horde_raiding_characters.lua
+../RaiderIO/db/db_tw_horde_raiding_lookup.lua
