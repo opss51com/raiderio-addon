@@ -144,7 +144,7 @@ local function UpdateTooltip(realm, name)
 	if realm and name and strlenutf8(realm) > 0 and strlenutf8(name) > 0 then
 		TT:SetParent(UI)
 		TT:SetOwner(UI, "ANCHOR_BOTTOM", 0, -8)
-		if not ns.AppendGameTooltip(TT, name .. "-" .. realm, true, true) then
+		if not ns.ShowTooltip(TT, bor(ns.ProfileOutput.DEFAULT, ns.ProfileOutput.MOD_KEY_DOWN), name, realm) then
 			TT:AddLine(ERR_FRIEND_NOT_FOUND, 1, 1, 1, false)
 		end
 		TT:Show()

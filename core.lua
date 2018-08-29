@@ -115,6 +115,13 @@ local ProfileOutput = {
 -- the default output flag combination used as fallback if user doesn't provide something meaningfull
 ProfileOutput.DEFAULT = bor(ProfileOutput.TOOLTIP, ProfileOutput.MYTHICPLUS, ProfileOutput.RAIDING)
 
+-- dynamic tooltip flags for specific uses
+local TooltipProfileOutput = {
+	DEFAULT = ProfileOutput.DEFAULT,
+	PADDING = bor(ProfileOutput.DEFAULT, ProfileOutput.ADD_PADDING),
+	NAME = bor(ProfileOutput.DEFAULT, ProfileOutput.ADD_NAME),
+}
+
 -- setup outdated struct
 do
 	for i = 1, #CONST_PROVIDER_DATA_LIST do
@@ -257,6 +264,13 @@ local EGG = {
 
 -- create the addon core frame
 local addon = CreateFrame("Frame")
+
+-- dynamic tooltip flags for specific uses (replaces the flags with functions that when called also combines the modifier logic)
+do
+	for k, v in pairs(TooltipProfileOutput) do
+		TooltipProfileOutput[k] = function(forceMod) return bor(v, (forceMod or addon:IsModifierKeyDown()) and ProfileOutput.MOD_KEY_DOWN or 0) end
+	end
+end
 
 -- utility functions
 local RoundNumber
@@ -1427,6 +1441,7 @@ do
 
 	-- retrieves the profile of a given unit, or name+realm query
 	function GetScore(arg1, arg2, forceFaction)
+		-- print("CALLING A DEPRECATED FUNCTION GetScore FROM RAIDER.IO") -- DEBUG
 		if not dataProvider then
 			return
 		end
@@ -1477,7 +1492,7 @@ do
 
 	-- reads the profile and formats the output using the provided output flags
 	local function ShapeProfileData(dataType, profile, outputFlag, ...)
-		local output = { dataType = dataType, profile = profile, outputFlag = outputFlag }
+		local output = { dataType = dataType, profile = profile, outputFlag = outputFlag, length = 0 }
 		local addTooltip = band(outputFlag, ProfileOutput.TOOLTIP) == ProfileOutput.TOOLTIP
 
 		if addTooltip then
@@ -1571,15 +1586,15 @@ do
 				end
 
 				if addLFD then
-					-- TODO: use "..." data passed down so we know what to build here
+					print("addLFD", ...) -- TODO: use "..." data passed down so we know what to build here
 				end
 
 				if focusDungeon then
-					-- TODO: use "..." data passed down so we know what to build here
+					print("focusDungeon", ...) -- TODO: use "..." data passed down so we know what to build here
 				end
 
 				if focusKeystone then
-					-- TODO: use "..." data passed down so we know what to build here
+					print("focusKeystone", ...) -- TODO: use "..." data passed down so we know what to build here
 				end
 
 				if addonConfig.showMainsScore and profile.mainScore > profile.allScore then
@@ -1624,7 +1639,7 @@ do
 		end
 		-- must be a number 0 or larger
 		if type(outputFlag) ~= "number" or outputFlag < 1 then
-			outputFlag = bor(ProfileOutput.DEFAULT, addon:IsModifierKeyDown() and ProfileOutput.MOD_KEY_DOWN or 0)
+			outputFlag = TooltipProfileOutput.PADDING()
 		end
 		-- read the first args and figure out the request
 		local arg1, arg2, arg3, arg4, arg5 = ...
@@ -1999,7 +2014,7 @@ do
 		for i = 1, count do
 			local output = profile[i]
 			-- iterate everything if this is the last module output, otherwise limit ourselves to the defined length
-			for j = 1, i == count and #output or output.length or #output do
+			for j = 1, i == count and #output or output.length do
 				-- the line can be a table, thus a double line, or a left aligned line
 				local line = output[j]
 				if type(line) == "table" then
@@ -2444,7 +2459,9 @@ do
 
 		-- debug.lua needs this for querying (also adding the tooltip bit because for now only these two are needed for debug.lua to function...)
 		ns.dataProvider = dataProvider
-		ns.AppendGameTooltip = AppendGameTooltip
+		ns.ShowTooltip = ShowTooltip
+		ns.ProfileOutput = ProfileOutput
+		ns.TooltipProfileOutput = TooltipProfileOutput
 	end
 
 	-- we enter the world (after a loading screen, int/out of instances)
@@ -2549,7 +2566,7 @@ do
 			end
 			-- TODO: summoning portals don't always trigger OnTooltipSetUnit properly, leaving the unit tooltip on the portal object
 			local _, unit = self:GetUnit()
-			ShowTooltip(self, bor(ProfileOutput.DEFAULT, ProfileOutput.ADD_PADDING, addon:IsModifierKeyDown() and ProfileOutput.MOD_KEY_DOWN or 0), unit, nil, GetFaction(unit))
+			ShowTooltip(self, TooltipProfileOutput.PADDING(), unit, nil, GetFaction(unit))
 		end
 		GameTooltip:HookScript("OnTooltipSetUnit", OnTooltipSetUnit)
 		return 1
@@ -2584,7 +2601,7 @@ do
 
 						local _, activityID, _, title, description = C_LFGList.GetActiveEntryInfo();
 						local keystoneLevel = GetKeystoneLevel(title) or GetKeystoneLevel(description) or 0
-						AppendGameTooltip(GameTooltip, fullName, not hasOwner, true, PLAYER_FACTION, LFD_ACTIVITYID_TO_DUNGEONID[activityID], keystoneLevel)
+						ShowTooltip(GameTooltip, bor(TooltipProfileOutput.PADDING(), ProfileOutput.ADD_LFD), fullName, nil, PLAYER_FACTION, true, LFD_ACTIVITYID_TO_DUNGEONID[activityID], keystoneLevel)
 
 						if addonConfig.positionProfileAuto then
 							ProfileTooltip_ShowNearFrame(GameTooltip, nil, "target")
@@ -2622,7 +2639,7 @@ do
 					local keystoneLevel = GetKeystoneLevel(title) or GetKeystoneLevel(description) or 0
 
 					-- Update game tooltip with player info
-					AppendGameTooltip(tooltip, leaderName, false, true, PLAYER_FACTION, LFD_ACTIVITYID_TO_DUNGEONID[activityID], keystoneLevel)
+					ShowTooltip(tooltip, bor(TooltipProfileOutput.PADDING(), ProfileOutput.ADD_LFD), leaderName, nil, PLAYER_FACTION, true, LFD_ACTIVITYID_TO_DUNGEONID[activityID], keystoneLevel)
 
 					-- RaiderIO Profile
 					if addonConfig.positionProfileAuto then
@@ -2669,7 +2686,7 @@ do
 					if not hasOwner then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
 					end
-					if not AppendGameTooltip(GameTooltip, name, not hasOwner, true, PLAYER_FACTION, nil) and not hasOwner then
+					if not ShowTooltip(GameTooltip, bor(TooltipProfileOutput.DEFAULT(), hasOwner and ProfileOutput.ADD_PADDING or 0), name, not hasOwner, true, PLAYER_FACTION, nil) and not hasOwner then
 						GameTooltip:Hide()
 					end
 				end
@@ -2704,7 +2721,7 @@ do
 			end
 			if fullName and level and level >= MAX_LEVEL then
 				GameTooltip:SetOwner(FriendsTooltip, "ANCHOR_BOTTOMRIGHT", -FriendsTooltip:GetWidth(), -4)
-				if not ShowTooltip(GameTooltip, bor(ProfileOutput.DEFAULT, addon:IsModifierKeyDown() and ProfileOutput.MOD_KEY_DOWN or 0), fullName, nil, faction) then
+				if not ShowTooltip(GameTooltip, TooltipProfileOutput.DEFAULT(), fullName, nil, faction) then
 					GameTooltip:Hide()
 				end
 			else
@@ -2738,7 +2755,7 @@ do
 					local fullName, _, _, level = GetGuildRosterInfo(self.guildIndex)
 					if fullName and level >= MAX_LEVEL then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
-						if not AppendGameTooltip(GameTooltip, fullName, true, false, PLAYER_FACTION, nil) then
+						if not ShowTooltip(GameTooltip, TooltipProfileOutput.PADDING(), fullName, nil, PLAYER_FACTION) then
 							GameTooltip:Hide()
 						end
 					end
@@ -2774,7 +2791,7 @@ do
 					if not hasOwner then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
 					end
-					if not AppendGameTooltip(GameTooltip, info.name, not hasOwner, nil, PLAYER_FACTION, nil) and not hasOwner then
+					if not ShowTooltip(GameTooltip, bor(TooltipProfileOutput.DEFAULT(), hasOwner and ProfileOutput.ADD_PADDING or 0), info.name, nil, PLAYER_FACTION) and not hasOwner then
 						GameTooltip:Hide()
 					end
 				end
@@ -3247,11 +3264,12 @@ end
 -- API
 _G.RaiderIO = {
 	-- Calling GetPlayerProfile returns a table with the data requested for that unit or player by name and realm. Faction is optional and is either 0 = Either, 1 = Alliance, 2 = Horde.
-	-- outputFlag is a bitwise combination of values from the ProfileOutput table. Combine different flags to specify the output data the function returns.
+	-- outputFlag is a bitwise combination of values from the ProfileOutput table, or by calling TooltipProfileOutput functions for complete presets for desired output.
 	-- RaiderIO.GetPlayerProfile(outputFlag, unit)
 	-- RaiderIO.GetPlayerProfile(outputFlag, "Name-Realm"[, 0|1|2])
 	-- RaiderIO.GetPlayerProfile(outputFlag, "Name", "Realm"[, 0|1|2])
 	ProfileOutput = ProfileOutput,
+	TooltipProfileOutput = TooltipProfileOutput,
 	GetPlayerProfile = GetPlayerProfile,
 	-- Calling GetFaction requires a unit and returns you 1 if it's Alliance, 2 if Horde, otherwise nil.
 	-- Calling GetScoreColor requires a Mythic+ score to be passed (a number value) and it returns r, g, b for that score.
