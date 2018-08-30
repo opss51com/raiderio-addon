@@ -112,5 +112,7 @@ L.CHECKBOX_DISPLAY_WEEKLY = "Display Weekly"
 L.NO_GUILD_RECORD = "No Guild Records"
 L.LEGION_SCORE = "Legion Score"
 L.LEGION_MAIN_SCORE = "Legion Main's Score"
+L.API_DEPRECATED = "|cffFF0000Warning!|r The function |cffFFFFFFRaiderIO.%s|r has been deprecated and will be removed in future releases. It's difficult for us to pinpoint what addon called this function, but when it breaks you'll certainly notice."
+L.API_DEPRECATED_WITH = "|cffFF0000Warning!|r The function |cffFFFFFFRaiderIO.%s|r has been deprecated and will be removed in future releases. Please use the new API |cffFFFFFFRaiderIO.%s|r instead. It's difficult for us to pinpoint what addon called this function, but when it breaks you'll certainly notice."
 
 ns.L = L

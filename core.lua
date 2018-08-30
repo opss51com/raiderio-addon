@@ -1,5 +1,9 @@
 local addonName, ns = ...
 
+-- if we're on the developer version the addon behaves slightly different
+local DEBUG_MODE = not not (GetAddOnMetadata(addonName, "Version") or ""):find("@project-version@", nil, true)
+-- DEBUG_MODE = false -- feel free to override the variable above to whatever you find suitable
+
 -- micro-optimization for more speed
 local unpack = unpack
 local sort = table.sort
@@ -9,6 +13,7 @@ local lshift = bit.lshift
 local rshift = bit.rshift
 local band = bit.band
 local bor = bit.bor
+local bxor = bit.bxor
 local PAYLOAD_BITS = 13
 local PAYLOAD_MASK = lshift(1, PAYLOAD_BITS) - 1
 local LOOKUP_MAX_SIZE = floor(2^18-1)
@@ -37,11 +42,7 @@ local addonConfig = {
 	inverseProfileModifier = false,
 	positionProfileAuto = true,
 	lockProfile = false,
-	profilePoint = {
-		["point"] = nil,
-		["x"] = 0,
-		["y"] = 0
-	}
+	profilePoint = { point = nil, x = 0, y = 0 },
 }
 
 -- session
@@ -71,7 +72,8 @@ local tooltipHooks = {
 	end
 }
 
-local profileTooltip = CreateFrame("GameTooltip"," profileTooltip", UIParent, "GameTooltipTemplate")
+-- profile tooltip next to the LFD (or other frames)
+local profileTooltip = CreateFrame("GameTooltip", addonName .. "ProfileTooltip", UIParent, "GameTooltipTemplate")
 
 -- player
 local PLAYER_FACTION
@@ -95,6 +97,7 @@ local L = ns.L
 local CONST_PROVIDER_DATA_MYTHICPLUS = 1
 local CONST_PROVIDER_DATA_RAIDING = 2
 local CONST_PROVIDER_DATA_LIST = { CONST_PROVIDER_DATA_MYTHICPLUS, CONST_PROVIDER_DATA_RAIDING }
+local CONST_PROVIDER_INTERFACE = { MYTHICPLUS = CONST_PROVIDER_DATA_MYTHICPLUS, RAIDING = CONST_PROVIDER_DATA_RAIDING }
 
 -- output flags used to shape the table returned by the data provider
 local ProfileOutput = {
@@ -112,8 +115,9 @@ local ProfileOutput = {
 	FOCUS_KEYSTONE = 1024,
 }
 
--- the default output flag combination used as fallback if user doesn't provide something meaningfull
-ProfileOutput.DEFAULT = bor(ProfileOutput.TOOLTIP, ProfileOutput.MYTHICPLUS, ProfileOutput.RAIDING)
+-- default no-tooltip and default tooltip flags used as baseline in several places
+ProfileOutput.DATA = bor(ProfileOutput.MYTHICPLUS, ProfileOutput.RAIDING)
+ProfileOutput.DEFAULT = bor(ProfileOutput.DATA, ProfileOutput.TOOLTIP)
 
 -- dynamic tooltip flags for specific uses
 local TooltipProfileOutput = {
@@ -140,6 +144,7 @@ local DUNGEON_INSTANCEMAPID_TO_DUNGEONID = {}
 local LFD_ACTIVITYID_TO_DUNGEONID = {}
 for i = 1, #CONST_DUNGEONS do
 	local dungeon = CONST_DUNGEONS[i]
+	dungeon.index = i
 
 	ENUM_DUNGEONS[dungeon.shortName] = i
 	KEYSTONE_INST_TO_DUNGEONID[dungeon.keystone_instance] = i
@@ -288,7 +293,9 @@ local IsUnitMaxLevel
 local GetWeeklyAffix
 local GetAverageScore
 local GetStarsForUpgrades
-local GetGuildFullname
+local GetGuildFullName
+local GetFormattedScore
+local GetFormattedRunCount
 do
 	-- bracket can be 10, 100, 0.1, 0.01, and so on
 	function RoundNumber(v, bracket)
@@ -363,72 +370,61 @@ do
 		return REGIONS[i], i
 	end
 
+	-- the kind of strings we might want to interpret as keystone levels in title and descriptions
+	local KEYSTONE_LEVEL_PATTERNS = { "(%d+)%+", "%+%s*(%d+)", "(%d+)%s*%+", "(%d+)" }
+
 	-- attempts to extract the keystone level from the provided strings
 	function GetKeystoneLevel(raw)
 		if type(raw) ~= "string" then
 			return
 		end
-		local regexesFindLevel = { "(%d+)%+", "%+%s*(%d+)", "(%d+)%s*%+", "(%d+)" }
-
-		local level = 0;
-		for i, regex in ipairs(regexesFindLevel) do
-			level = raw:match(regex);
-			level = tonumber(level)
-			if level and level < 32 then
-				break
+		local level
+		for _, pattern in ipairs(KEYSTONE_LEVEL_PATTERNS) do
+			level = raw:match(pattern)
+			if level then
+				level = tonumber(level)
+				if level and level < 32 then
+					break
+				end
 			end
 		end
-
 		if not level or level < 2 then
 			return
 		end
-
 		return level
 	end
 
-	-- detect LFD queue status
-	-- returns two objects, first is a table containing queued dungeons and levels, second is a true|false based on if we are hosting ourselves
-	-- the first table returns the dungeon directly if we are hosting, since we can only host for one dungeon at a time anyway
+	-- returns the LFD status (returns the info based on what we are hosting a group for, or what we queued up for)
 	function GetLFDStatus()
+		-- hosting a keystone group
+		local _, activityID, _, _, name, comment = C_LFGList.GetActiveEntryInfo()
 		local temp = {}
-		-- are we hosting our own keystone group?
-		local id, activityID, _, _, name, comment = C_LFGList.GetActiveEntryInfo()
-		if id then
-			if activityID then
-				local index = LFD_ACTIVITYID_TO_DUNGEONID[activityID]
-				if index then
-					temp.index = index
-					temp.dungeon = CONST_DUNGEONS[index]
-					temp.level = GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0
-					return temp, true
-				end
+		if activityID then
+			local index = LFD_ACTIVITYID_TO_DUNGEONID[activityID]
+			if index then
+				temp.dungeon = CONST_DUNGEONS[index]
+				temp.level = 0 or GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0
+				return true, temp
 			end
-			return nil, true
 		end
-		-- scan what we have applied to, if we aren't hosting our own keystone
+		-- applying for a keystone group
 		local applications = C_LFGList.GetApplications()
+		local j = 1
 		for i = 1, #applications do
 			local resultID = applications[i]
-			local id, activityID, name, comment, _, _, _, _, _, _, _, isDelisted = C_LFGList.GetSearchResultInfo(resultID)
-			if activityID then
+			local _, activityID, name, comment, _, _, _, _, _, _, _, isDelisted = C_LFGList.GetSearchResultInfo(resultID)
+			if activityID and not isDelisted then
 				local _, appStatus, pendingStatus = C_LFGList.GetApplicationInfo(resultID)
-				-- the application needs to be active for us to count as queued up for it
-				if not isDelisted and not pendingStatus and (appStatus == "applied" or appStatus == "invited") then
+				if not pendingStatus and (appStatus == "applied" or appStatus == "invited") then
 					local index = LFD_ACTIVITYID_TO_DUNGEONID[activityID]
 					if index then
-						temp[#temp + 1] = {
-							index = index,
-							dungeon = CONST_DUNGEONS[index],
-							level = GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0
-						}
+						temp[j] = { dungeon = CONST_DUNGEONS[index], level = 0 or GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0, resultID = resultID }
+						j = j + 1
 					end
 				end
 			end
 		end
-		-- return only if we have valid results
-		if temp[1] then
-			return temp, false
-		end
+		return j - 1, temp
 	end
 
 	-- detect what instance we are in
@@ -441,12 +437,7 @@ do
 		if not index then
 			return
 		end
-		local temp = {
-			index = index,
-			dungeon = CONST_DUNGEONS[index],
-			level = 0
-		}
-		return temp, true, true
+		return CONST_DUNGEONS[index]
 	end
 
 	-- retrieves the url slug for a given realm name
@@ -533,7 +524,7 @@ do
 		end
 	end
 
-	function GetGuildFullname(unit)
+	function GetGuildFullName(unit)
 		local guildName, _, _, guildRealm = GetGuildInfo(unit)
 
 		if not guildName then
@@ -547,13 +538,29 @@ do
 		return guildName.."-"..guildRealm
 	end
 
+	-- returns score formatted for current or prev season
+	function GetFormattedScore(score, isPrevious)
+		if isPrevious then
+			return score .. " " .. L.PREV_SEASON_SUFFIX
+		end
+		return score
+	end
+
+	-- we only use 8 bits for a run, so decide a cap that we won't show beyond
+	function GetFormattedRunCount(count)
+		if count > 250 then
+			return "250+"
+		else
+			return count
+		end
+	end
 end
 
 -- addon functions
 local Init
 local InitConfig
-local ProfileTooltip_SetFrameDraggability -- Needs to be set here to be used in the config
-local ProfileTooltip_ShowNearFrame -- Needs to be set here to be used in the config
+local ProfileTooltip_ShowNearFrame -- needs to be set here to be used in the config
+local ProfileTooltip_SetFrameDraggability -- needs to be set here to be used in the config
 do
 	-- update local reference to the correct savedvariable table
 	local function UpdateGlobalConfigVar()
@@ -1113,9 +1120,6 @@ end
 local AddProvider
 local AddClientCharacters
 local AddClientGuilds
-local GetFormattedScore
-local GetFormattedRunCount
-local GetScore
 local GetScoreColor
 local GetPlayerProfile
 do
@@ -1269,10 +1273,12 @@ do
 		-- TODO: can we make this table read-only? raw methods will bypass metatable restrictions we try to enforce
 		-- build this custom table in order to avoid users tainting the provider database
 		cache = {
+			-- provider information
 			region = dataProviderGroup.region,
 			date = dataProviderGroup.date,
 			season = dataProviderGroup.season,
 			prevSeason = dataProviderGroup.prevSeason,
+			-- basic information about the character
 			name = name,
 			realm = realm,
 			faction = faction,
@@ -1284,76 +1290,88 @@ do
 			dpsScore = payload.dpsScore,
 			healScore = payload.healScore,
 			tankScore = payload.tankScore,
-			-- has been enhanced with client data
-			isEnhanced = false,
 			-- dungeons they have completed
 			dungeons = payload.dungeons,
-			-- number of keystone upgrades per dungeon
-			dungeonUpgrades = {},
-			-- fractional time for each dungeon completion
-			dungeonTimes = {},
+			-- best dungeon completed (or highest 10/15 achievement)
+			maxDungeon = CONST_DUNGEONS[payload.maxDungeonIndex],
 			maxDungeonLevel = payload.maxDungeonLevel,
-			maxDungeonUpgrades = 0,
-			maxDungeonName = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortName or '',
-			maxDungeonNameLocale = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortNameLocale or '',
+			maxDungeonIndex = payload.maxDungeonIndex,
+			maxDungeonName = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortName or "",
+			maxDungeonNameLocale = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortNameLocale or "",
 			keystoneTenPlus = payload.keystoneTenPlus,
 			keystoneFifteenPlus = payload.keystoneFifteenPlus,
 		}
 
-		-- BFA
-		cache.legionScore = RoundNumber(cache.allScore, 10)
-		cache.legionMainScore = RoundNumber(cache.mainScore, 10)
-		cache.allScore = 0
-		cache.isPrevAllScore = false
-		cache.mainScore = 0
-		cache.dpsScore = 0
-		cache.healScore = 0
-		cache.tankScore = 0
-		cache.maxDungeonLevel = 0
-		cache.maxDungeonName = ''
-		cache.maxDungeonNameLocale = ''
-		cache.keystoneTenPlus = 0
-		cache.keystoneFifteenPlus = 0
-		for i = 1, #cache.dungeons do
-			cache.dungeons[i] = 0
-		end
+		-- client related data populates these fields
+		do
 
-		-- if character exists in the clientCharacters list then override some data with higher precision
-		-- TODO: only do this if the clientCharacters data isn't too old compared to regular addon date?
---		if addonConfig.enableClientEnhancements then
-		if false then -- DISABLED FOR BFA
-			local nameAndRealm = name .. "-" .. realm
-			if clientCharacters[nameAndRealm] then
-				local keystoneData = clientCharacters[nameAndRealm].mythic_keystone
-				cache.isEnhanced = true
-				cache.allScore = keystoneData.all.score
+			-- has been enhanced with client data
+			cache.isEnhanced = false
 
-				local maxDungeonIndex = 0
-				local maxDungeonTime = 999
-				local maxDungeonLevel = 0
-				local maxDungeonUpgrades = 0
+			-- number of keystone upgrades per dungeon
+			cache.dungeonUpgrades = {}
+			cache.dungeonTimes = {}
+			cache.maxDungeonUpgrades = 0
 
-				for i = 1, #keystoneData.all.runs do
-					local run = keystoneData.all.runs[i]
-					cache.dungeons[i] = run.level
-					cache.dungeonUpgrades[i] = run.upgrades
-					cache.dungeonTimes[i] = run.fraction
+			-- purge pre-bfa data until bfa season starts (but keep it if we're debugging so we can play with the UI)
+			if not DEBUG_MODE then
+				cache.legionScore = RoundNumber(cache.allScore, 10)
+				cache.legionMainScore = RoundNumber(cache.mainScore, 10)
+				cache.allScore = 0
+				cache.isPrevAllScore = false
+				cache.mainScore = 0
+				cache.dpsScore = 0
+				cache.healScore = 0
+				cache.tankScore = 0
+				cache.maxDungeonLevel = 0
+				cache.maxDungeonName = ""
+				cache.maxDungeonNameLocale = ""
+				cache.keystoneTenPlus = 0
+				cache.keystoneFifteenPlus = 0
+				for i = 1, #cache.dungeons do cache.dungeons[i] = 0 end
+			end
 
-					if (run.level > maxDungeonLevel) or (run.level == maxDungeonLevel and run.fraction < maxDungeonTime) then
-						maxDungeonLevel = run.level
-						maxDungeonTime = run.fraction
-						maxDungeonUpgrades = run.upgrades
-						maxDungeonIndex = i
+			-- if character exists in the clientCharacters list then override some data with higher precision
+			-- TODO: only do this if the clientCharacters data isn't too old compared to regular addon date?
+			if false or addonConfig.enableClientEnhancements then
+				local nameAndRealm = name .. "-" .. realm
+				local clientData = clientCharacters[nameAndRealm]
+
+				if clientData then
+					local keystoneData = clientData.mythic_keystone
+					cache.isEnhanced = true
+					cache.allScore = keystoneData.all.score
+
+					local maxDungeonIndex = 0
+					local maxDungeonTime = 999
+					local maxDungeonLevel = 0
+					local maxDungeonUpgrades = 0
+
+					for i = 1, #keystoneData.all.runs do
+						local run = keystoneData.all.runs[i]
+						cache.dungeons[i] = run.level
+						cache.dungeonUpgrades[i] = run.upgrades
+						cache.dungeonTimes[i] = run.fraction
+
+						if run.level > maxDungeonLevel or (run.level == maxDungeonLevel and run.fraction < maxDungeonTime) then
+							maxDungeonLevel = run.level
+							maxDungeonTime = run.fraction
+							maxDungeonUpgrades = run.upgrades
+							maxDungeonIndex = i
+						end
+					end
+
+					if maxDungeonIndex > 0 then
+						cache.maxDungeon = CONST_DUNGEONS[maxDungeonIndex]
+						cache.maxDungeonIndex = maxDungeonIndex
+						cache.maxDungeonLevel = maxDungeonLevel
+						cache.maxDungeonName = CONST_DUNGEONS[maxDungeonIndex] and CONST_DUNGEONS[maxDungeonIndex].shortName or ""
+						cache.maxDungeonNameLocale = CONST_DUNGEONS[maxDungeonIndex] and CONST_DUNGEONS[maxDungeonIndex].shortNameLocale or ""
+						cache.maxDungeonUpgrades = maxDungeonUpgrades
 					end
 				end
-
-				if maxDungeonIndex > 0 then
-					cache.maxDungeonLevel = maxDungeonLevel
-					cache.maxDungeonName = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortName or ''
-					cache.maxDungeonNameLocale = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortNameLocale or ''
-					cache.maxDungeonUpgrades = maxDungeonUpgrades
-				end
 			end
+
 		end
 
 		-- append additional role information
@@ -1420,39 +1438,6 @@ do
 		assert(type(data) == "table", "Raider.IO has been requested to load a client database that isn't supported.")
 		guildBest = data
 		guildProviderCalled = true
-	end
-
-	-- returns score formatted for current or prev season
-	function GetFormattedScore(score, isPrevious)
-		if isPrevious then
-			return score .. " " .. L.PREV_SEASON_SUFFIX
-		end
-		return score
-	end
-
-	-- we only use 8 bits for a run, so decide a cap that we won't show beyond
-	function GetFormattedRunCount(count)
-		if count > 250 then
-			return '250+'
-		else
-			return count
-		end
-	end
-
-	-- retrieves the profile of a given unit, or name+realm query
-	function GetScore(arg1, arg2, forceFaction)
-		-- print("CALLING A DEPRECATED FUNCTION GetScore FROM RAIDER.IO") -- DEBUG
-		if not dataProvider then
-			return
-		end
-		local name, realm, unit = GetNameAndRealm(arg1, arg2)
-		if name and realm then
-			-- no need to lookup lowbies for a score
-			if unit and (UnitLevel(unit) or 0) < MAX_LEVEL then
-				return
-			end
-			return GetProviderData(CONST_PROVIDER_DATA_MYTHICPLUS, name, realm, type(forceFaction) == "number" and forceFaction or GetFaction(unit))
-		end
 	end
 
 	-- returns score color using item colors
@@ -1534,33 +1519,6 @@ do
 					i = i + 1
 				end
 
-				if addBestRun then
-					local highlightStr
-					if profile.keystoneFifteenPlus > 0 then
-						if profile.maxDungeonLevel < 15 then
-							highlightStr = L.KEYSTONE_COMPLETED_15
-						end
-					elseif profile.keystoneTenPlus > 0 then
-						if profile.maxDungeonLevel < 10 then
-							highlightStr = L.KEYSTONE_COMPLETED_10
-						end
-					end
-					if not highlightStr and profile.maxDungeonLevel > 0 then
-						highlightStr = "+" .. profile.maxDungeonLevel .. " " .. profile.maxDungeonNameLocale
-					end
-					if highlightStr then
-						output[i] = {L.BEST_RUN, highlightStr, 1, 1, 1, GetScoreColor(profile.allScore)}
-						i = i + 1
-					end
-					if profile.keystoneFifteenPlus > 0 then
-						output[i] = {L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
-					end
-					if profile.keystoneTenPlus > 0 and (profile.keystoneFifteenPlus == 0 or showExtendedTooltip) then
-						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
-						i = i + 1
-					end
-				end
-
 				if isModKeyDown then
 					local scores = {}
 					local j = 1
@@ -1577,24 +1535,95 @@ do
 						j = j + 1
 					end
 					table.sort(scores, SortScoresByRole)
-					for i = 1, #scores do
-						if scores[i][2] > 0 then
-							output[i] = {scores[i][1], scores[i][2], 1, 1, 1, GetScoreColor(scores[i][2])}
+					for k = 1, j - 1 do
+						if scores[k][2] > 0 then
+							output[i] = {scores[k][1], scores[k][2], 1, 1, 1, GetScoreColor(scores[k][2])}
 							i = i + 1
 						end
 					end
 				end
 
-				if addLFD then
-					print("addLFD", ...) -- TODO: use "..." data passed down so we know what to build here
-				end
+				if addBestRun or addLFD or focusDungeon then
+					local best = { dungeon = nil, level = 0, text = nil }
 
-				if focusDungeon then
-					print("focusDungeon", ...) -- TODO: use "..." data passed down so we know what to build here
+					if addLFD then
+						local hasArgs, dungeonIndex = ...
+						if hasArgs == true then
+							best.dungeon = CONST_DUNGEONS[dungeonIndex] or best.dungeon
+						end
+					end
+
+					if focusDungeon then
+						local hasArgs, dungeonIndex = ...
+						if hasArgs == true then
+							best.dungeon = CONST_DUNGEONS[dungeonIndex] or best.dungeon
+						end
+					end
+
+					if not best.dungeon then
+						local numSigned, status = GetLFDStatus()
+						if numSigned then
+							if numSigned == true then
+								best.dungeon = status.dungeon
+							elseif numSigned > 0 then
+								local highestDungeon
+								for j = 1, numSigned do
+									local d = status[j]
+									if not highestDungeon or d.level > highestDungeon.level then
+										highestDungeon = d
+									end
+								end
+								best.dungeon = highestDungeon
+							end
+						end
+						if not dungeon then
+							best.dungeon = GetInstanceStatus()
+						end
+					end
+
+					if best.dungeon then
+						best.level = profile.dungeons[best.dungeon.index]
+					end
+
+					if profile.keystoneFifteenPlus > 0 then
+						if profile.maxDungeonLevel < 15 then
+							best.text = L.KEYSTONE_COMPLETED_15
+						end
+					elseif profile.keystoneTenPlus > 0 then
+						if profile.maxDungeonLevel < 10 then
+							best.text = L.KEYSTONE_COMPLETED_10
+						end
+					end
+
+					if best.dungeon and best.dungeon == profile.maxDungeon then
+						output[i] = {L.BEST_RUN, "+" .. best.level .. " " .. best.dungeon.shortNameLocale, 0, 1, 0, GetScoreColor(profile.allScore)}
+						i = i + 1
+					elseif best.dungeon and best.level > 0 then
+						output[i] = {L.BEST_RUN, "+" .. best.level .. " " .. best.dungeon.shortNameLocale, 1, 1, 1, GetScoreColor(profile.allScore)}
+						i = i + 1
+					elseif best.text then
+						output[i] = {L.BEST_RUN, best.text, 1, 1, 1, GetScoreColor(profile.allScore)}
+						i = i + 1
+					end
+
+					if profile.keystoneFifteenPlus > 0 then
+						output[i] = {L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
+						i = i + 1
+					end
+					if profile.keystoneTenPlus > 0 and (profile.keystoneFifteenPlus == 0 or showExtendedTooltip) then
+						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
+						i = i + 1
+					end
 				end
 
 				if focusKeystone then
-					print("focusKeystone", ...) -- TODO: use "..." data passed down so we know what to build here
+					local hasArgs, arg1, arg2 = ...
+					if hasArgs == true then
+						output[i] = "focusKeystone arg1 = " .. tostring(arg1)
+						i = i + 1
+						output[i] = "focusKeystone arg2 = " .. tostring(arg2)
+						i = i + 1
+					end
 				end
 
 				if addonConfig.showMainsScore and profile.mainScore > profile.allScore then
@@ -1608,11 +1637,12 @@ do
 				-- TODO
 			end
 
-			output.length = i - 1
+			local j = 1
 
 			if IS_DB_OUTDATED[dataType][profile.faction] then
 				output[i] = {format(L.OUTDATED_DATABASE, OUTDATED_DAYS[dataType][profile.faction]), "", 1, 1, 1, 1, 1, 1, false}
 				i = i + 1
+				j = j + 1
 			end
 
 			local t = EGG[profile.region]
@@ -1623,9 +1653,12 @@ do
 					if t then
 						output[i] = {t, "", 0.9, 0.8, 0.5, 1, 1, 1, false}
 						i = i + 1
+						j = j + 1
 					end
 				end
 			end
+
+			output.length = i - j
 
 		end
 
@@ -1639,19 +1672,23 @@ do
 		end
 		-- must be a number 0 or larger
 		if type(outputFlag) ~= "number" or outputFlag < 1 then
-			outputFlag = TooltipProfileOutput.PADDING()
+			outputFlag = ProfileOutput.DATA
 		end
 		-- read the first args and figure out the request
 		local arg1, arg2, arg3, arg4, arg5 = ...
+		local targ1, targ2, targ3 = type(arg1), type(arg2), type(arg3)
 		local passThroughAt, passThroughArg1, passThroughArg2, passThroughArg1Table
 		local queryName, queryRealm, queryFaction
-		if type(arg1) == "string" and type(arg2) == "string" and type(arg3) == "number" then
+		if targ1 == "string" and targ2 == "string" and targ3 == "number" then
 			passThroughAt, passThroughArg1, passThroughArg2 = 4, arg4, arg5
 			queryName, queryRealm, queryFaction = arg1, arg2, arg3
-		elseif type(arg1) == "string" and type(arg2) == "string" then
+		elseif targ1 == "string" and arg2 == nil and targ3 == "number" then
+			passThroughAt, passThroughArg1, passThroughArg2 = 4, arg4, arg5
+			queryName, queryRealm, queryFaction = arg1, arg2, arg3
+		elseif targ1 == "string" and targ2 == "string" then
 			passThroughAt, passThroughArg1, passThroughArg2 = 3, arg3, arg4
 			queryName, queryRealm, queryFaction = arg1, arg2, nil
-		elseif type(arg1) == "string" and type(arg2) == "number" then
+		elseif targ1 == "string" and targ2 == "number" then
 			passThroughAt, passThroughArg1, passThroughArg2 = 3, arg3, arg4
 			queryName, queryRealm, queryFaction = arg1, nil, arg2
 		else
@@ -1682,11 +1719,13 @@ do
 			-- establish faction for the lookups
 			local faction = type(queryFaction) == "number" and queryFaction or GetFaction(unit)
 			-- retrive data from the various data types
+			local reqMythicPlus = band(outputFlag, ProfileOutput.MYTHICPLUS) == ProfileOutput.MYTHICPLUS
+			local reqRaiding = band(outputFlag, ProfileOutput.RAIDING) == ProfileOutput.RAIDING
 			local profile = {}
 			local hasData = false
 			for i = 1, #CONST_PROVIDER_DATA_LIST do
 				local dataType = CONST_PROVIDER_DATA_LIST[i]
-				if (dataType == CONST_PROVIDER_DATA_MYTHICPLUS and band(outputFlag, ProfileOutput.MYTHICPLUS) == ProfileOutput.MYTHICPLUS) or (dataType == CONST_PROVIDER_DATA_RAIDING and band(outputFlag, ProfileOutput.RAIDING) == ProfileOutput.RAIDING) then
+				if (dataType == CONST_PROVIDER_DATA_MYTHICPLUS and reqMythicPlus) or (dataType == CONST_PROVIDER_DATA_RAIDING and reqRaiding) then
 					local data = GetProviderData(dataType, name, realm, faction)
 					if data then
 						hasData = true
@@ -1698,6 +1737,12 @@ do
 					end
 				end
 			end
+			-- if we only requested specific mythic+ or raiding data we only return that specific table
+			if reqMythicPlus and not reqRaiding then
+				profile = profile[CONST_PROVIDER_DATA_MYTHICPLUS]
+			elseif not reqMythicPlus and reqRaiding then
+				profile = profile[CONST_PROVIDER_DATA_RAIDING]
+			end
 			-- cache profile before returning, if we are allowed to cache this particular tooltip
 			if canCacheProfile then
 				profileCacheTooltip[profileGUID] = profile
@@ -1708,17 +1753,18 @@ do
 end
 
 -- tooltips
-local AppendGameTooltip
-local UpdateAppendedGameTooltip
-local AppendAveragePlayerScore
-local AddLegionScore
+-- local AppendGameTooltip
+-- local AppendAveragePlayerScore
+-- local AddLegionScore
 local ShowTooltip
+local UpdateTooltip
 do
+	--[=[
 	local function sortRoleScores(a, b)
 		return a[2] > b[2]
 	end
 
-	function AddLegionScore(tooltip, profile)
+	local function AddLegionScore(tooltip, profile)
 		if profile.legionScore and profile.legionScore > 0 and (not profile.legionMainScore or profile.legionMainScore <= profile.legionScore) then
 			tooltip:AddDoubleLine(L.LEGION_SCORE, GetFormattedScore(profile.legionScore), 1, 1, 1, 1, 1, 1)
 		elseif profile.legionMainScore and (not profile.legionScore or profile.legionMainScore > profile.legionScore) then
@@ -1932,67 +1978,6 @@ do
 		end
 	end
 
-	-- triggers a tooltip update of the current visible tooltip
-	function UpdateAppendedGameTooltip()
-		-- unpack the args
-		local arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 = tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6], tooltipArgs[7], tooltipArgs[8]
-		local tooltip
-		if arg1 == true then
-			tooltip = arg2
-		elseif arg1 == false then
-			tooltip = arg2[1]
-		else
-			tooltip = arg1
-		end
-		-- sanity check
-		if not tooltip or not tooltip:GetOwner() then return end
-		-- units only need to SetUnit to re-draw the tooltip properly
-		local _, unit = tooltip:GetUnit()
-		if unit then
-			tooltip:SetUnit(unit)
-			return
-		end
-		-- gather tooltip information
-		local o1, o2, o3, o4 = tooltip:GetOwner()
-		local p1, p2, p3, p4, p5 = tooltip:GetPoint(1)
-		local a1, a2, a3 = tooltip:GetAnchorType()
-		-- try to run the OnEnter handler to simulate the user hovering over and triggering the tooltip
-		if o1 then
-			local oe = o1:GetScript("OnEnter")
-			if oe then
-				tooltip:Hide()
-				oe(o1)
-				return
-			end
-		end
-		-- if nothing else worked, attempt to hide, then show the tooltip again in the same place
-		tooltip:Hide()
-		if o1 then
-			o2 = a1
-			if p4 then
-				o3 = p4
-			end
-			if p5 then
-				o4 = p5
-			end
-			tooltip:SetOwner(o1, o2, o3, o4)
-		end
-		if p1 then
-			tooltip:SetPoint(p1, p2, p3, p4, p5)
-		end
-		if not o1 and a1 then
-			tooltip:SetAnchorType(a1, a2, a3)
-		end
-		-- finalize by appending our tooltip on the bottom
-		if arg1 == true then
-			ShowTooltip(arg2, arg3, arg4, arg5, arg6, arg7, arg8)
-		elseif arg1 == false then
-			ShowTooltip(unpack(arg2))
-		else
-			AppendGameTooltip(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
-		end
-	end
-
 	function AppendAveragePlayerScore(tooltip, keystoneLevel, addBlankLine)
 --		if addonConfig.showAverageScore then
 		if false then -- Wait that a certain amount of run is recorded before displaying it
@@ -2005,6 +1990,8 @@ do
 			end
 		end
 	end
+
+	--]=]
 
 	-- draws the tooltip based on the returned profile data from the data providers
 	local function AppendTooltipLines(tooltip, profile)
@@ -2053,16 +2040,100 @@ do
 		end
 		return false
 	end
+
+	-- updates the visible tooltip
+	function UpdateTooltip()
+		-- unpack the args
+		local arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 = tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6], tooltipArgs[7], tooltipArgs[8]
+		local tooltip
+		if arg1 == true then
+			tooltip = arg2
+		elseif arg1 == false then
+			tooltip = arg2[1]
+		end
+		-- sanity check
+		if not tooltip or not tooltip:GetOwner() then return end
+		-- units only need to SetUnit to re-draw the tooltip properly
+		local _, unit = tooltip:GetUnit()
+		if unit then
+			tooltip:SetUnit(unit)
+			return
+		end
+		-- gather tooltip information
+		local o1, o2, o3, o4 = tooltip:GetOwner()
+		local p1, p2, p3, p4, p5 = tooltip:GetPoint(1)
+		local a1, a2, a3 = tooltip:GetAnchorType()
+		-- try to run the OnEnter handler to simulate the user hovering over and triggering the tooltip
+		if o1 then
+			local oe = o1:GetScript("OnEnter")
+			if oe then
+				tooltip:Hide()
+				oe(o1)
+				return
+			end
+		end
+		-- if nothing else worked, attempt to hide, then show the tooltip again in the same place
+		tooltip:Hide()
+		if o1 then
+			o2 = a1
+			if p4 then
+				o3 = p4
+			end
+			if p5 then
+				o4 = p5
+			end
+			tooltip:SetOwner(o1, o2, o3, o4)
+		end
+		if p1 then
+			tooltip:SetPoint(p1, p2, p3, p4, p5)
+		end
+		if not o1 and a1 then
+			tooltip:SetAnchorType(a1, a2, a3)
+		end
+		-- we need to handle the modifier bit or we'll just re-draw the same one if we've toggled the modifier
+		local modBit, modBitIsArg
+		if arg1 == true then
+			modBit, modBitIsArg = arg3, true
+		elseif arg1 == false then
+			modBit, modBitIsArg = arg2[3], false
+		end
+		if modBit then
+			if band(modBit, ProfileOutput.MOD_KEY_DOWN) == ProfileOutput.MOD_KEY_DOWN then
+				if not addon:IsModifierKeyDown() then
+					modBit = bxor(modBit, ProfileOutput.MOD_KEY_DOWN)
+				end
+			elseif addon:IsModifierKeyDown() then
+				modBit = bor(modBit, ProfileOutput.MOD_KEY_DOWN)
+			end
+			if modBitIsArg then
+				arg3 = modBit
+			else
+				arg2[3] = modBit
+			end
+		end
+		-- finalize by calling the show tooltip API with the same arguments as earlier
+		if arg1 == true then
+			ShowTooltip(arg2, arg3, arg4, arg5, arg6, arg7, arg8)
+		elseif arg1 == false then
+			ShowTooltip(unpack(arg2))
+		end
+	end
 end
 
--- RaiderIO Profile
+-- profile tooltip
 local ProfileTooltip_Update
+-- local ProfileTooltip_ShowNearFrame -- defined further up as these are used in the config
+-- local ProfileTooltip_SetFrameDraggability -- defined further up as these are used in the config
 do
 	-- force can either be "player", "target" or not defined
 	-- if force == player then always display player's profile
 	-- if force == target then always display the active player tooltip
 	-- if force is not defined, then the display depends on the modifier and the configuration
 	function ProfileTooltip_Update(force)
+		if false then return end -- DEBUG: NYI
+
+		--[=[
+
 		if not profileTooltip or not profileTooltip:GetOwner() then
 			return
 		end
@@ -2181,9 +2252,13 @@ do
 		end
 
 		profileTooltip:Show()
+		--]=]
 	end
 
 	function ProfileTooltip_ShowNearFrame(frame, forceFrameStrata, force)
+		if false then return end -- DEBUG: NYI
+
+		--[=[
 		if not addonConfig.showRaiderIOProfile then
 			return
 		end
@@ -2195,22 +2270,20 @@ do
 		profileTooltip:SetFrameStrata(forceFrameStrata or frame:GetFrameStrata())
 
 		ProfileTooltip_Update(force)
+		--]=]
 	end
 
 	local function ProfileTooltip_OnDragStop(self)
 		self:StopMovingOrSizing()
 		local point, _, _, x, y = self:GetPoint()
-		addonConfig.profilePoint = {
-			["point"] = point,
-			["x"] = x,
-			["y"] = y
-		}
+		local p = addonConfig.profilePoint or {}
+		p.point, p.x, p.y = point, x, y
+		addonConfig.profilePoint = p
 	end
 
 	function ProfileTooltip_SetFrameDraggability(draggable)
 		profileTooltip:SetMovable(draggable)
 		profileTooltip:EnableMouse(draggable)
-
 		if draggable then
 			profileTooltip:RegisterForDrag("LeftButton")
 			profileTooltip:SetScript("OnDragStart", profileTooltip.StartMoving)
@@ -2244,7 +2317,7 @@ do
 	function RaiderIO_GuildBestMixin:SwitchBestRun()
 		addonConfig.displayWeeklyGuildBest = not addonConfig.displayWeeklyGuildBest
 
-		self:SetUp(GetGuildFullname("player"))
+		self:SetUp(GetGuildFullName("player"))
 	end
 
 	function RaiderIO_GuildBestMixin:SetUp(guildFullname)
@@ -2410,7 +2483,11 @@ do
 				IS_DB_OUTDATED[dataType][data.faction] = isOutdated
 				OUTDATED_HOURS[dataType][data.faction] = outdatedHours
 				OUTDATED_DAYS[dataType][data.faction] = outdatedDays
-				isAnyProviderOutdated = isOutdated and math.max(outdatedDays, isAnyProviderOutdated) or isAnyProviderOutdated
+
+				-- update the outdated counter with the largest count
+				if isOutdated then
+					isAnyProviderOutdated = isAnyProviderOutdated and math.max(isAnyProviderOutdated, outdatedDays) or outdatedDays
+				end
 
 				-- append provider to the group
 				if dataProviderGroup then
@@ -2482,7 +2559,7 @@ do
 		local l = addon.modKey
 		addon.modKey = m
 		if m ~= l and skipUpdatingTooltip ~= true then
-			UpdateAppendedGameTooltip()
+			UpdateTooltip()
 		end
 	end
 
@@ -2598,19 +2675,17 @@ do
 						if not hasOwner then
 							GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
 						end
-
-						local _, activityID, _, title, description = C_LFGList.GetActiveEntryInfo();
+						local _, activityID, _, title, description = C_LFGList.GetActiveEntryInfo()
 						local keystoneLevel = GetKeystoneLevel(title) or GetKeystoneLevel(description) or 0
 						ShowTooltip(GameTooltip, bor(TooltipProfileOutput.PADDING(), ProfileOutput.ADD_LFD), fullName, nil, PLAYER_FACTION, true, LFD_ACTIVITYID_TO_DUNGEONID[activityID], keystoneLevel)
-
+						-- RaiderIO Profile
 						if addonConfig.positionProfileAuto then
 							ProfileTooltip_ShowNearFrame(GameTooltip, nil, "target")
 						else
 							ProfileTooltip_Update("target")
 						end
-
-						if not hooked["applicant"] then
-							hooked["applicant"] = 1
+						if not hooked.applicant then
+							hooked.applicant = 1
 							GameTooltip:HookScript("OnHide", ProfileTooltip_OnHide)
 						end
 					end
@@ -2637,25 +2712,21 @@ do
 				local _, activityID, title, description, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
 				if leaderName then
 					local keystoneLevel = GetKeystoneLevel(title) or GetKeystoneLevel(description) or 0
-
 					-- Update game tooltip with player info
 					ShowTooltip(tooltip, bor(TooltipProfileOutput.PADDING(), ProfileOutput.ADD_LFD), leaderName, nil, PLAYER_FACTION, true, LFD_ACTIVITYID_TO_DUNGEONID[activityID], keystoneLevel)
-
 					-- RaiderIO Profile
 					if addonConfig.positionProfileAuto then
 						ProfileTooltip_ShowNearFrame(tooltip)
 					else
 						ProfileTooltip_Update()
 					end
-
-					if not hooked["applicant"] then
-						hooked["applicant"] = 1
+					if not hooked.applicant then
+						hooked.applicant = 1
 						GameTooltip:HookScript("OnHide", ProfileTooltip_OnHide)
 					end
 				end
 			end
 			hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntryTooltip)
-
 			-- execute delayed hooks
 			for i = 1, 14 do
 				local b = _G["LFGListApplicationViewerScrollFrameButton" .. i]
@@ -2686,7 +2757,7 @@ do
 					if not hasOwner then
 						GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
 					end
-					if not ShowTooltip(GameTooltip, bor(TooltipProfileOutput.DEFAULT(), hasOwner and ProfileOutput.ADD_PADDING or 0), name, not hasOwner, true, PLAYER_FACTION, nil) and not hasOwner then
+					if not ShowTooltip(GameTooltip, bor(TooltipProfileOutput.DEFAULT(), hasOwner and ProfileOutput.ADD_PADDING or 0), name, nil, PLAYER_FACTION) and not hasOwner then
 						GameTooltip:Hide()
 					end
 				end
@@ -2886,9 +2957,9 @@ do
 						else
 							repl = format(WHO_LIST_FORMAT, nameLink, name, level, race, class, zone)
 						end
-						profile = GetScore(nameLink, nil, PLAYER_FACTION)
+						profile = GetPlayerProfile(ProfileOutput.MYTHICPLUS, nameLink, nil, PLAYER_FACTION)
 						if profile then
-							repl = repl .. " - " .. score(profile)
+							repl = repl .. " - " .. score(profile.profile)
 						end
 						return false, repl, ...
 					end
@@ -3107,8 +3178,8 @@ do
 				if addonConfig.showDropDownCopyURL then
 					local dropdownFullName
 					if dropdown.name then
-						if dropdown.server and not dropdown.name:find('-') then
-							dropdownFullName = dropdown.name .. '-' .. dropdown.server
+						if dropdown.server and not dropdown.name:find("-") then
+							dropdownFullName = dropdown.name .. "-" .. dropdown.server
 						else
 							dropdownFullName = dropdown.name
 						end
@@ -3163,7 +3234,7 @@ do
 			tooltip:AddLine(" ")
 			tooltip:AddDoubleLine(L.RAIDERIO_MP_BASE_SCORE, baseScore, 1, 0.85, 0, 1, 1, 1)
 
-			AppendAveragePlayerScore(tooltip, lvl)
+			-- AppendAveragePlayerScore(tooltip, lvl)
 
 			inst = tonumber(inst)
 			if inst then
@@ -3173,7 +3244,7 @@ do
 					if n <= 5 then -- let's show score only if we are in a 5 man group/raid
 						for i = 0, n do
 							local unit = i == 0 and "player" or "party" .. i
-							local profile = GetScore(unit)
+							local profile = GetPlayerProfile(ProfileOutput.MYTHICPLUS, unit)
 							if profile then
 								local level = profile.dungeons[index]
 								if level > 0 then
@@ -3236,7 +3307,7 @@ do
 				GuildBestFrame:ClearAllPoints()
 				GuildBestFrame:SetFrameStrata("HIGH")
 
-				local guildFullname = GetGuildFullname("player")
+				local guildFullname = GetGuildFullName("player")
 
 				if not guildFullname then
 					return
@@ -3261,7 +3332,29 @@ do
 	end
 end
 
--- API
+-- deprecated warnings
+local WrapDeprecatedFunc
+do
+	local notified = {}
+
+	local function Notify(funcName, newFuncName)
+		if notified[funcName] then return end
+		notified[funcName] = true
+		DEFAULT_CHAT_FRAME:AddMessage(format(L[newFuncName and "API_DEPRECATED_WITH" or "API_DEPRECATED"], funcName, newFuncName), 1, 1, 0)
+	end
+
+	function WrapDeprecatedFunc(funcName, newFuncName)
+		return function(...)
+			Notify(funcName, newFuncName)
+			local d = GetPlayerProfile(ProfileOutput.DATA, ...)
+			if d then d = d[CONST_PROVIDER_DATA_MYTHICPLUS] end
+			if d then d = d.profile end
+			return d
+		end
+	end
+end
+
+-- public API
 _G.RaiderIO = {
 	-- Calling GetPlayerProfile returns a table with the data requested for that unit or player by name and realm. Faction is optional and is either 0 = Either, 1 = Alliance, 2 = Horde.
 	-- outputFlag is a bitwise combination of values from the ProfileOutput table, or by calling TooltipProfileOutput functions for complete presets for desired output.
@@ -3270,14 +3363,15 @@ _G.RaiderIO = {
 	-- RaiderIO.GetPlayerProfile(outputFlag, "Name", "Realm"[, 0|1|2])
 	ProfileOutput = ProfileOutput,
 	TooltipProfileOutput = TooltipProfileOutput,
+	DataProvider = CONST_PROVIDER_INTERFACE,
 	GetPlayerProfile = GetPlayerProfile,
 	-- Calling GetFaction requires a unit and returns you 1 if it's Alliance, 2 if Horde, otherwise nil.
 	-- Calling GetScoreColor requires a Mythic+ score to be passed (a number value) and it returns r, g, b for that score.
 	-- RaiderIO.GetScoreColor(1234)
 	GetScoreColor = GetScoreColor,
-	-- DEPRECATED
-	GetScore = GetScore,
-	GetProfile = GetScore,
+	-- DEPRECATED since BfA season 1
+	GetScore = WrapDeprecatedFunc("GetScore", "GetPlayerProfile"),
+	GetProfile = WrapDeprecatedFunc("GetProfile", "GetPlayerProfile"),
 }
 
 -- PLEASE DO NOT USE (we need it public for the sake of the database modules)
