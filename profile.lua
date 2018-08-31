@@ -3,216 +3,199 @@ local addonName, ns = ...
 -- constants
 local L = ns.L
 
+-- colors
+local COLOR_WHITE = { r = 1, g = 1, b = 1 }
+local COLOR_GREY = { r = 0.62, g = 0.62, b = 0.62 }
+local COLOR_GREEN = { r = 0, g = 1, b = 0 }
+
+-- fallback frame
+local FALLBACK_FRAME = _G.PVEFrame
+local FALLBACK_FRAME_STRATA = "BACKGROUND"
+
 -- profile tooltip
-local ProfileTooltip = CreateFrame("GameTooltip", addonName .. "ProfileTooltip", UIParent, "GameTooltipTemplate")
+local ProfileTooltip
+do
+	ProfileTooltip = CreateFrame("GameTooltip", addonName .. "ProfileTooltip", FALLBACK_FRAME, "GameTooltipTemplate")
+	ProfileTooltip:RegisterForDrag("LeftButton")
+	ProfileTooltip:SetScript("OnDragStop", function()
+		ProfileTooltip:StopMovingOrSizing()
+		local point, _, _, x, y = ProfileTooltip:GetPoint()
+		local p = ns.addonConfig.profilePoint or {}
+		p.point, p.x, p.y = point, x, y
+		ns.addonConfig.profilePoint = p
+	end)
+end
 
--- force can either be "player", "target" or not defined
--- if force == player then always display player's profile
--- if force == target then always display the active player tooltip
--- if force is not defined, then the display depends on the modifier and the configuration
+local IsFallbackShown
+local HookFrame
+local SetAnchor
+local UpdateProfile
+local SetDrag
+do
+	local hooks = {}
+	local query = {}
+	local hasQuery = false
 
-local function ProfileTooltip_Update(force)
-	if false then return end -- DEBUG: NYI
-
-	--[=[
-
-	if not profileTooltip or not profileTooltip:GetOwner() then
-		return
+	local function IsFrame(widget)
+		return type(widget) == "table" and type(widget.GetObjectType) == "function"
 	end
 
-	local arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex, focusOnKeystoneLevel = tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6]
-
-	-- force player
-	if force == "player" then
-		arg1 = "player"
-	end
-
-	-- force target
-	if force ~= "target" then
-		if not arg1 then
-			arg1 = "player"
-		end
-
-		if not ns.addonConfig.enableProfileModifier then
-			arg1 = "player"
+	local function HookHideTooltip()
+		if IsFallbackShown() then
+			ProfileTooltip.ShowProfile("player", nil, ns.PLAYER_FACTION, FALLBACK_FRAME, FALLBACK_FRAME_STRATA)
 		else
-			if (not ns.addonConfig.inverseProfileModifier and not addon:IsModifierKeyDown(true)) or (ns.addonConfig.inverseProfileModifier and addon:IsModifierKeyDown(true)) then
-				arg1 = "player"
+			ProfileTooltip.HideProfile(true)
+		end
+	end
+
+	local function PopulateProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel)
+		--[=[
+		-- TODO: logic stuff needs fixing
+		if ns.addonConfig.enableProfileModifier then
+			if (ns.addonConfig.inverseProfileModifier and ns.addon:IsModifierKeyDown(true)) or (not ns.addonConfig.inverseProfileModifier and not addon:IsModifierKeyDown(true)) then
+				unitOrNameOrNameAndRealm = "player"
 			end
 		end
-	end
-
-	local profile = GetScore(arg1, nil, forceFaction)
-
-	-- sanity check that the profile exists
-	if not profile then
-		return
-	end
-
-	profileTooltip:ClearLines()
-
-	if arg1 == "player" then
-		profileTooltip:AddLine(L.MY_PROFILE_TITLE, 1, 0.85, 0, false)
-	else
-		profileTooltip:AddLine(L.PLAYER_PROFILE_TITLE, 1, 0.85, 0, false)
-	end
-
-	profileTooltip:AddDoubleLine(profile.name, GetFormattedScore(profile.allScore, profile.isPrevAllScore), 1, 1, 1, GetScoreColor(profile.allScore))
-
-	AddLegionScore(profileTooltip, profile)
-
-	if profile.mainScore > profile.allScore then
-		profileTooltip:AddDoubleLine(L.MAINS_SCORE, profile.mainScore, 1, 1, 1, GetScoreColor(profile.mainScore))
-	end
-
-	profileTooltip:AddLine(" ")
-	profileTooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0, false)
-
-	local dungeons = {}
-	for dungeonIndex, keyLevel in ipairs(profile.dungeons) do
-		table.insert(dungeons, {
-			index = dungeonIndex,
-			shortName = CONST_DUNGEONS[dungeonIndex].shortNameLocale,
-			keyLevel = keyLevel,
-			upgrades = profile.dungeonUpgrades[dungeonIndex] or 0,
-			fractionalTime = profile.dungeonTimes[dungeonIndex] or 0
-		})
-	end
-
-	table.sort(dungeons, CompareDungeon)
-
-	for i, dungeon in ipairs(dungeons) do
-		local colorDungeonName = COLOR_WHITE
-		local colorDungeonLevel = COLOR_WHITE
-
-		local keyLevel = dungeon.keyLevel
-		if keyLevel ~= 0 then
-			if profile.isEnhanced then
-				if dungeon.upgrades == 0 then
-					colorDungeonLevel = COLOR_GREY
-				end
-				keyLevel = GetStarsForUpgrades(dungeon.upgrades) .. keyLevel
+		--]=]
+		local profile, hasData = ns.GetPlayerProfile(bit.bor(ns.ProfileOutput.MYTHICPLUS, ns.ProfileOutput.TOOLTIP), unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, true, lfdActivityID, keystoneLevel)
+		if not profile then return end
+		profile = profile.profile
+		if not profile then return end
+		local isPlayer = unitOrNameOrNameAndRealm == "player"
+		local dungeon
+		if lfdActivityID then
+			local dungeonID = ns.LFD_ACTIVITYID_TO_DUNGEONID[lfdActivityID]
+			if dungeonID then
+				dungeon = ns.CONST_DUNGEONS[dungeonID]
+			end
+		end
+		local focusOnDungeonIndex = dungeon and dungeon.index or nil
+		local dungeons = {}
+		for dungeonIndex, keyLevel in ipairs(profile.dungeons) do
+			local d = ns.CONST_DUNGEONS[dungeonIndex]
+			dungeons[dungeonIndex] = {
+				index = dungeonIndex,
+				dungeon = d,
+				shortName = d.shortNameLocale,
+				keyLevel = keyLevel,
+				upgrades = profile.dungeonUpgrades[dungeonIndex] or 0,
+				fractionalTime = profile.dungeonTimes[dungeonIndex] or 0,
+			}
+		end
+		table.sort(dungeons, ns.CompareDungeon)
+		ProfileTooltip:AddLine(L[isPlayer and "MY_PROFILE_TITLE" or "PLAYER_PROFILE_TITLE"], 1, 0.85, 0, false)
+		for i = 1, #profile do
+			local line = profile[i]
+			if type(line) == "table" then
+				ProfileTooltip:AddDoubleLine(line[1], line[2], line[3], line[4], line[5], line[6], line[7], line[8], line[9], line[10])
 			else
-				keyLevel = "+" .. keyLevel
+				ProfileTooltip:AddLine(line)
 			end
-		else
-			keyLevel = "-"
-			colorDungeonLevel = COLOR_GREY
 		end
-
-		if focusOnDungeonIndex and focusOnDungeonIndex == dungeon.index then
---				TODO: Add color depending if it's an upgrade or a downgrade
---				if focusOnKeystoneLevel then
---					if dungeon.keyLevel < focusOnKeystoneLevel  then
---						-- green
---						colorDungeonName = { r = 0.12, g = 1, b = 0 }
---						colorDungeonLevel = { r = 0.12, g = 1, b = 0 }
---					elseif dungeon.keyLevel > focusOnKeystoneLevel then
---						-- purple
---						colorDungeonName = { r = 0.78, g = 0, b = 1 }
---						colorDungeonLevel = { r = 0.78, g = 0, b = 1 }
---					else
---						-- blue
---						colorDungeonName = { r = 0, g = 0.51, b = 1 }
---						colorDungeonLevel = { r = 0, g = 0.51, b = 1 }
---					end
---				else
+		ProfileTooltip:AddLine(" ")
+		ProfileTooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0, false)
+		for i, dungeon in ipairs(dungeons) do
+			local colorDungeonName = COLOR_WHITE
+			local colorDungeonLevel = COLOR_WHITE
+			local keyLevel = dungeon.keyLevel
+			if keyLevel ~= 0 then
+				if profile.isEnhanced then
+					if dungeon.upgrades == 0 then
+						colorDungeonLevel = COLOR_GREY
+					end
+					keyLevel = ns.GetStarsForUpgrades(dungeon.upgrades) .. keyLevel
+				else
+					keyLevel = "+" .. keyLevel
+				end
+			else
+				keyLevel = "-"
+				colorDungeonLevel = COLOR_GREY
+			end
+			if focusOnDungeonIndex and focusOnDungeonIndex == dungeon.index then
 				colorDungeonName = COLOR_GREEN
 				colorDungeonLevel = COLOR_GREEN
---				end
+			end
+			ProfileTooltip:AddDoubleLine(dungeon.shortName, keyLevel, colorDungeonName.r, colorDungeonName.g, colorDungeonName.b, colorDungeonLevel.r, colorDungeonLevel.g, colorDungeonLevel.b)
 		end
-
-		profileTooltip:AddDoubleLine(dungeon.shortName, keyLevel, colorDungeonName.r, colorDungeonName.g, colorDungeonName.b, colorDungeonLevel.r, colorDungeonLevel.g, colorDungeonLevel.b)
-	end
-
-	if OUTDATED_DAYS[CONST_PROVIDER_DATA_MYTHICPLUS] and OUTDATED_DAYS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] > 1 then
-		profileTooltip:AddLine(" ")
-		profileTooltip:AddLine(format(L.OUTDATED_DATABASE, OUTDATED_DAYS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
-	elseif OUTDATED_HOURS[CONST_PROVIDER_DATA_MYTHICPLUS] and OUTDATED_HOURS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] > 12 then
-		profileTooltip:AddLine(" ")
-		profileTooltip:AddLine(format(L.OUTDATED_DATABASE_HOURS, OUTDATED_HOURS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
-	end
-
-	profileTooltip:Show()
-	--]=]
-end
-
-local function ProfileTooltip_ShowNearFrame(frame, forceFrameStrata, force)
-	if false then return end -- DEBUG: NYI
-
-	--[=[
-	if not ns.addonConfig.showRaiderIOProfile then
-		return
-	end
-
-	profileTooltip:SetOwner(frame, "ANCHOR_NONE")
-	profileTooltip:ClearAllPoints()
-	profileTooltip:SetPoint("TOPLEFT", frame, "TOPRIGHT")
-
-	profileTooltip:SetFrameStrata(forceFrameStrata or frame:GetFrameStrata())
-
-	ProfileTooltip_Update(force)
-	--]=]
-end
-
-local function ProfileTooltip_OnDragStop(self)
-	self:StopMovingOrSizing()
-	local point, _, _, x, y = self:GetPoint()
-	local p = ns.addonConfig.profilePoint or {}
-	p.point, p.x, p.y = point, x, y
-	ns.addonConfig.profilePoint = p
-end
-
-local function ProfileTooltip_SetFrameDraggability(draggable)
-	ProfileTooltip:SetMovable(draggable)
-	ProfileTooltip:EnableMouse(draggable)
-	if draggable then
-		ProfileTooltip:RegisterForDrag("LeftButton")
-		ProfileTooltip:SetScript("OnDragStart", ProfileTooltip.StartMoving)
-		ProfileTooltip:SetScript("OnDragStop", ProfileTooltip_OnDragStop)
-	else
-		ProfileTooltip:RegisterForDrag(nil)
-		ProfileTooltip:SetScript("OnDragStart", nil)
-		ProfileTooltip:SetScript("OnDragStop", nil)
-	end
-end
-
-local function ProfileTooltip_OnHide(self)
-	if PVEFrame:IsShown() then
-		if ns.addonConfig.positionProfileAuto then
-			ProfileTooltip_ShowNearFrame(PVEFrame, "BACKGROUND")
-		else
-			ProfileTooltip_Update()
+		if ns.OUTDATED_DAYS[ns.CONST_PROVIDER_DATA_MYTHICPLUS] and ns.OUTDATED_DAYS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] > 1 then
+			ProfileTooltip:AddLine(" ")
+			ProfileTooltip:AddLine(format(L.OUTDATED_DATABASE, ns.OUTDATED_DAYS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
+		elseif ns.OUTDATED_HOURS[ns.CONST_PROVIDER_DATA_MYTHICPLUS] and ns.OUTDATED_HOURS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] > 12 then
+			ProfileTooltip:AddLine(" ")
+			ProfileTooltip:AddLine(format(L.OUTDATED_DATABASE_HOURS, ns.OUTDATED_HOURS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
 		end
-	else
-		ProfileTooltip:Hide()
+		ProfileTooltip:Show()
+		return true
 	end
-end
 
-ProfileTooltip:HookScript("OnHide",  ProfileTooltip_OnHide)
+	local function SaveQuery(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel)
+		query[1], query[2], query[3], query[4], query[5] = unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel
+		hasQuery = true
+	end
 
-local HookFrame
-do
-	local hook = {}
+	local function ClearQuery()
+		query[1], query[2], query[3], query[4], query[5] = nil
+		hasQuery = false
+	end
+
+	local function GetQuery()
+		return query[1], query[2], query[3], query[4], query[5]
+	end
+
+	function IsFallbackShown()
+		return FALLBACK_FRAME:IsShown()
+	end
 
 	function HookFrame(frame)
-		if type(frame) ~= "table" or type(frame.GetObjectType) ~= "function" then return end
-		if hook[frame] then return end
-		hook[frame] = 1
-		frame:HookScript("OnHide", ProfileTooltip.HideProfile)
+		if not IsFrame(frame) then return end
+		if hooks[frame] then return end
+		hooks[frame] = 1
+		frame:HookScript("OnHide", HookHideTooltip)
+	end
+
+	function SetAnchor(anchorFrame, frameStrata)
+		anchorFrame = IsFrame(anchorFrame) and anchorFrame or FALLBACK_FRAME
+		ProfileTooltip:SetOwner(anchorFrame, "ANCHOR_NONE")
+		ProfileTooltip:ClearAllPoints()
+		local userPlaced = ns.addonConfig.profilePoint
+		if userPlaced and userPlaced.point then
+			ProfileTooltip:SetPoint(userPlaced.point, UIParent, userPlaced.point, userPlaced.x, userPlaced.y)
+		elseif anchorFrame then
+			ProfileTooltip:SetPoint("TOPLEFT", anchorFrame, "TOPRIGHT", 0, 0)
+		end
+		ProfileTooltip:SetFrameStrata(frameStrata or "MEDIUM")
+	end
+
+	function UpdateProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel)
+		if unitOrNameOrNameAndRealm == true then
+			unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel = GetQuery()
+		end
+		ProfileTooltip:ClearLines()
+		if PopulateProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel) then
+			SaveQuery(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel)
+			ProfileTooltip:Show()
+		else
+			ClearQuery()
+			ProfileTooltip:Hide()
+		end
+	end
+
+	function SetDrag(canDrag)
+		ProfileTooltip:EnableMouse(canDrag)
+		ProfileTooltip:SetMovable(canDrag)
 	end
 end
 
 function ProfileTooltip.SaveConfig()
-	if ns.addonConfig.positionProfileAuto and PVEFrame:IsShown() then
-		ProfileTooltip_ShowNearFrame(PVEFrame, "BACKGROUND")
-	end
-	ProfileTooltip_SetFrameDraggability(not ns.addonConfig.positionProfileAuto and not ns.addonConfig.lockProfile)
 	if ns.addonConfig.positionProfileAuto then
 		local p = ns.addonConfig.profilePoint or {}
 		p.point, p.x, p.y = nil
 		ns.addonConfig.profilePoint = p
+		if IsFallbackShown() then
+			SetAnchor(FALLBACK_FRAME, FALLBACK_FRAME_STRATA)
+		end
 	end
+	SetDrag(not ns.addonConfig.positionProfileAuto and not ns.addonConfig.lockProfile)
 end
 
 function ProfileTooltip.ToggleLock()
@@ -226,41 +209,32 @@ function ProfileTooltip.ToggleLock()
 		DEFAULT_CHAT_FRAME:AddMessage(L.LOCKING_PROFILE_FRAME, 1, 1, 0)
 	end
 	ns.addonConfig.lockProfile = not ns.addonConfig.lockProfile
-	ProfileTooltip_SetFrameDraggability(not ns.addonConfig.lockProfile)
+	SetDrag(not ns.addonConfig.lockProfile)
 end
 
-function ProfileTooltip.ShowProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, anchorFrame, frameStrata)
+function ProfileTooltip.ShowProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, anchorFrame, frameStrata, lfdActivityID, keystoneLevel)
 	if anchorFrame then
 		HookFrame(anchorFrame)
 	end
 	if ns.addonConfig.positionProfileAuto then
-		ProfileTooltip_ShowNearFrame(anchorFrame, nil, "target")
+		SetAnchor(anchorFrame, frameStrata)
+	end
+	UpdateProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel)
+end
+
+function ProfileTooltip.HideProfile(useFallback)
+	if useFallback == true and IsFallbackShown() then
+		SetAnchor(FALLBACK_FRAME, FALLBACK_FRAME_STRATA)
+		ProfileTooltip.UpdateTooltip()
 	else
-		ProfileTooltip_Update("target")
+		ProfileTooltip:Hide()
 	end
 end
 
-function ProfileTooltip.HideProfile(anchorFrame)
-	if ns.addonConfig.positionProfileAuto then
-		ProfileTooltip_ShowNearFrame(anchorFrame)
-	else
-		ProfileTooltip_Update()
+function ProfileTooltip.UpdateTooltip()
+	if ProfileTooltip:IsShown() then
+		UpdateProfile(true)
 	end
 end
 
 ns.PROFILE_UI = ProfileTooltip
-
---[[
-if not profileTooltip:IsShown() then
-	ProfileTooltip_ShowNearFrame(PVEFrame, "BACKGROUND", "player")
-	if not ns.addonConfig.positionProfileAuto then
-		if ns.addonConfig.profilePoint.point ~= nil then
-			profileTooltip:ClearAllPoints()
-			profileTooltip:SetPoint(ns.addonConfig.profilePoint.point, nil, ns.addonConfig.profilePoint.point, ns.addonConfig.profilePoint.x, ns.addonConfig.profilePoint.y)
-		end
-		if not ns.addonConfig.lockProfile then
-			ProfileTooltip_SetFrameDraggability(true)
-		end
-	end
-end
---]]

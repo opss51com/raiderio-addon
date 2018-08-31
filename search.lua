@@ -292,11 +292,3 @@ end
 
 -- init from the slash handler in core.lua
 ns.SEARCH_INIT = Init
-
--- imports:
--- ns.dataProvider
--- ns.ProfileOutput
--- ns.ShowTooltip
--- exports:
--- ns.SEARCH_INIT
--- ns.SEARCH_UI
