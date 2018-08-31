@@ -1985,6 +1985,8 @@ do
 		-- we wipe the cached profiles in between loading screens, this seems like a good way get rid of memory use over time
 		table.wipe(profileCache)
 		table.wipe(profileCacheTooltip)
+		-- store the character we're logged on (used by the client to queue an update, once we log out from the game of course)
+		_G.RaiderIO_LastCharacter = format("%s-%s", GetNameAndRealm("player"))
 	end
 
 	-- modifier key is toggled, update the tooltip if needed

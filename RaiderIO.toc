@@ -3,7 +3,7 @@
 ## Notes: Shows Raider.IO Mythic+ Scores in-game. Make sure to load one or more region DB.
 ## Author: Vladinator (Voidzone-Ravencrest) and Aspyr (Aspyrael-Skullcrusher)
 ## Version: 8.0.1 (@project-version@)
-## SavedVariables: RaiderIO_Config
+## SavedVariables: RaiderIO_Config, RaiderIO_LastCharacter
 ## X-Website: https://raider.io
 
 db/db_regions.lua
