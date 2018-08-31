@@ -15,11 +15,11 @@ function RaiderIO_GuildBestMixin:SetUp(guildFullName)
 	local bestRuns = ns.GUILD_BEST_DATA[guildFullName] or {}
 
 	local keyBest = "season_best"
-	local title = L["GUILD_BEST_SEASON"]
+	local title = L.GUILD_BEST_SEASON
 
 	if ns.addonConfig.displayWeeklyGuildBest then
 		keyBest = "weekly_best"
-		title = L["GUILD_BEST_WEEKLY"]
+		title = L.GUILD_BEST_WEEKLY
 	end
 
 	self.SubTitle:SetText(title)
@@ -49,7 +49,7 @@ end
 
 function RaiderIO_GuildBestMixin:Reset()
 	self.GuildBestNoRun:Hide()
-	self.GuildBestNoRun.Text:SetText(L["NO_GUILD_RECORD"])
+	self.GuildBestNoRun.Text:SetText(L.NO_GUILD_RECORD)
 	if self.GuildBests then
 		for _, frame in ipairs(self.GuildBests) do
 			frame:Hide()
@@ -74,7 +74,7 @@ RaiderIO_SwitchGuildBestMixin = {}
 
 function RaiderIO_SwitchGuildBestMixin:OnLoad()
 	self.text:SetFontObject("GameFontNormalTiny2")
-	self.text:SetText(L["CHECKBOX_DISPLAY_WEEKLY"])
+	self.text:SetText(L.CHECKBOX_DISPLAY_WEEKLY)
 	self.text:SetPoint("LEFT", 15, 0)
 	self.text:SetJustifyH("LEFT")
 	self:SetSize(15, 15)

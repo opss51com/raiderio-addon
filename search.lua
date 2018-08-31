@@ -147,7 +147,7 @@ local function UpdateTooltip(realm, name)
 	if realm and name and strlenutf8(realm) > 0 and strlenutf8(name) > 0 then
 		Tooltip:SetParent(Frame)
 		Tooltip:SetOwner(Frame, "ANCHOR_BOTTOM", 0, -8)
-		if not ns.ShowTooltip(Tooltip, bit.bor(ns.ProfileOutput.DEFAULT, ns.ProfileOutput.MOD_KEY_DOWN), name, realm) then
+		if not ns.ShowTooltip(Tooltip, bit.bor(ns.ProfileOutput.DEFAULT, ns.ProfileOutput.MOD_KEY_DOWN_STICKY), name, realm) then
 			Tooltip:AddLine(ERR_FRIEND_NOT_FOUND, 1, 1, 1, false)
 		end
 		Tooltip:Show()

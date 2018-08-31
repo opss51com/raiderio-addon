@@ -64,10 +64,6 @@ local configFrame
 local dataProviderQueue = {}
 local dataProvider
 
--- tooltip related hooks and storage
-local tooltipArgs = {}
-local tooltipHooks = { Wipe = function() table.wipe(tooltipArgs) end }
-
 -- player
 local PLAYER_FACTION
 local PLAYER_REGION
@@ -97,15 +93,16 @@ local ProfileOutput = {
 	INVALID_FLAG = 0,
 	INCLUDE_LOWBIES = 1,
 	MOD_KEY_DOWN = 2,
-	MYTHICPLUS = 4,
-	RAIDING = 8,
-	TOOLTIP = 16,
-	ADD_PADDING = 32,
-	ADD_NAME = 64,
-	ADD_BEST_RUN = 128,
-	ADD_LFD = 256,
-	FOCUS_DUNGEON = 512,
-	FOCUS_KEYSTONE = 1024,
+	MOD_KEY_DOWN_STICKY = 4,
+	MYTHICPLUS = 8,
+	RAIDING = 16,
+	TOOLTIP = 32,
+	ADD_PADDING = 64,
+	ADD_NAME = 128,
+	ADD_BEST_RUN = 256,
+	ADD_LFD = 512,
+	FOCUS_DUNGEON = 1024,
+	FOCUS_KEYSTONE = 2048,
 }
 
 -- default no-tooltip and default tooltip flags used as baseline in several places
@@ -1225,7 +1222,7 @@ do
 		end
 
 		-- unpack the payloads into these tables
-		payload = UnpackCharacterData(data1, data2, data3)
+		local payload = UnpackCharacterData(data1, data2, data3)
 
 		-- TODO: can we make this table read-only? raw methods will bypass metatable restrictions we try to enforce
 		-- build this custom table in order to avoid users tainting the provider database
@@ -1428,6 +1425,7 @@ do
 			local i = 1
 
 			local isModKeyDown = band(outputFlag, ProfileOutput.MOD_KEY_DOWN) == ProfileOutput.MOD_KEY_DOWN
+			local isModKeyDownSticky = band(outputFlag, ProfileOutput.MOD_KEY_DOWN_STICKY) == ProfileOutput.MOD_KEY_DOWN_STICKY
 			local addPadding = band(outputFlag, ProfileOutput.ADD_PADDING) == ProfileOutput.ADD_PADDING
 			local addName = band(outputFlag, ProfileOutput.ADD_NAME) == ProfileOutput.ADD_NAME
 			local addBestRun = band(outputFlag, ProfileOutput.ADD_BEST_RUN) == ProfileOutput.ADD_BEST_RUN
@@ -1463,7 +1461,7 @@ do
 					i = i + 1
 				end
 
-				if isModKeyDown then
+				if isModKeyDown or isModKeyDownSticky then
 					local scores = {}
 					local j = 1
 					if profile.tankScore then
@@ -1699,8 +1697,12 @@ end
 
 -- tooltips
 local ShowTooltip
-local UpdateTooltip
+local UpdateTooltips
 do
+	-- tooltip related hooks and storage
+	local tooltipArgs = {}
+	local tooltipHooks = { Wipe = function(tooltip) table.wipe(tooltipArgs[tooltip]) end }
+
 	-- draws the tooltip based on the returned profile data from the data providers
 	local function AppendTooltipLines(tooltip, profile, multipleProviders)
 		local added
@@ -1746,16 +1748,19 @@ do
 			tooltipHooks[tooltip] = true
 			tooltip:HookScript("OnTooltipCleared", tooltipHooks.Wipe)
 			tooltip:HookScript("OnHide", tooltipHooks.Wipe)
+			-- setup the re-usable table for this tooltips args cache for future updates
+			tooltipArgs[tooltip] = {}
 		end
 		-- get the player profile
 		local profile, hasProfile, isCached, multipleProviders = GetPlayerProfile(outputFlag, unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, arg1, ...)
 		-- sanity check
 		if hasProfile and AppendTooltipLines(tooltip, profile, multipleProviders) then
 			-- store tooltip args for refresh purposes
+			local tooltipCache = tooltipArgs[tooltip]
 			if isCached then
-				tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6], tooltipArgs[7], tooltipArgs[8] = true, tooltip, outputFlag, unitOrNameOrNameAndRealm, realmOrNil, factionOrNil
+				tooltipCache[1], tooltipCache[2], tooltipCache[3], tooltipCache[4], tooltipCache[5], tooltipCache[6], tooltipCache[7], tooltipCache[8] = true, tooltip, outputFlag, unitOrNameOrNameAndRealm, realmOrNil, factionOrNil
 			else
-				tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6], tooltipArgs[7], tooltipArgs[8] = false, {tooltip, outputFlag, unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, arg1, ...}
+				tooltipCache[1], tooltipCache[2], tooltipCache[3], tooltipCache[4], tooltipCache[5], tooltipCache[6], tooltipCache[7], tooltipCache[8] = false, {tooltip, outputFlag, unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, arg1, ...}
 			end
 			-- resize tooltip to fit the new contents
 			tooltip:Show()
@@ -1765,9 +1770,9 @@ do
 	end
 
 	-- updates the visible tooltip
-	function UpdateTooltip()
+	local function UpdateTooltip(tooltipCache)
 		-- unpack the args
-		local arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 = tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6], tooltipArgs[7], tooltipArgs[8]
+		local arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8 = tooltipCache[1], tooltipCache[2], tooltipCache[3], tooltipCache[4], tooltipCache[5], tooltipCache[6], tooltipCache[7], tooltipCache[8]
 		local tooltip
 		if arg1 == true then
 			tooltip = arg2
@@ -1839,6 +1844,14 @@ do
 			ShowTooltip(arg2, arg3, arg4, arg5, arg6, arg7, arg8)
 		elseif arg1 == false then
 			ShowTooltip(unpack(arg2))
+		end
+	end
+
+	function UpdateTooltips()
+		for tooltip, tooltipCache in pairs(tooltipArgs) do
+			if tooltip:IsShown() then
+				UpdateTooltip(tooltipCache)
+			end
 		end
 	end
 end
@@ -1985,7 +1998,7 @@ do
 		local l = addon.modKey
 		addon.modKey = m
 		if m ~= l and skipUpdatingTooltip ~= true then
-			UpdateTooltip()
+			UpdateTooltips()
 			ns.PROFILE_UI.UpdateTooltip()
 		end
 	end
@@ -2726,13 +2739,10 @@ do
 	ns.IS_DB_OUTDATED = IS_DB_OUTDATED
 	ns.OUTDATED_DAYS = OUTDATED_DAYS
 	ns.OUTDATED_HOURS = OUTDATED_HOURS
-	ns.GetFormattedScore = GetFormattedScore
-	ns.GetScoreColor = GetScoreColor
 	ns.CompareDungeon = CompareDungeon
 	ns.GetStarsForUpgrades = GetStarsForUpgrades
 	ns.ProfileOutput = ProfileOutput
 	ns.TooltipProfileOutput = TooltipProfileOutput
-	ns.CONST_PROVIDER_INTERFACE = CONST_PROVIDER_INTERFACE
 	ns.GetPlayerProfile = GetPlayerProfile
 	ns.ShowTooltip = ShowTooltip
 end
