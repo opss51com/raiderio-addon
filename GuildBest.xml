@@ -94,5 +94,9 @@
                 </Scripts>
             </CheckButton>
         </Frames>
+        <Scripts>
+            <OnShow method="OnShow" />
+            <OnHide method="OnHide" />
+        </Scripts>
     </Frame>
 </Ui>

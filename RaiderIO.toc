@@ -11,6 +11,9 @@ db/db_realms.lua
 db/db_score_tiers.lua
 db/db_score_stats.lua
 
+db/db_client_characters.lua
+db/db_client_guilds.lua
+
 locale/locale.lua
 locale/enUS.lua
 locale/deDE.lua
@@ -24,9 +27,8 @@ locale/zhCN.lua
 locale/zhTW.lua
 
 core.lua
+profile.lua
 search.lua
-
-GuildBest.xml
-
-db/db_client_characters.lua
-db/db_client_guilds.lua
+client.lua
+guildbest.lua
+guildbest.xml

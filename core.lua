@@ -1,14 +1,15 @@
 local addonName, ns = ...
 
 -- if we're on the developer version the addon behaves slightly different
-local DEBUG_MODE = not not (GetAddOnMetadata(addonName, "Version") or ""):find("@project-version@", nil, true)
--- DEBUG_MODE = false -- feel free to override the variable above to whatever you find suitable
+ns.DEBUG_MODE = not not (GetAddOnMetadata(addonName, "Version") or ""):find("@project-version@", nil, true)
 
 -- micro-optimization for more speed
 local unpack = unpack
 local sort = table.sort
 local wipe = table.wipe
 local floor = math.floor
+local min = math.min
+local max = math.max
 local lshift = bit.lshift
 local rshift = bit.rshift
 local band = bit.band
@@ -19,31 +20,36 @@ local PAYLOAD_MASK = lshift(1, PAYLOAD_BITS) - 1
 local LOOKUP_MAX_SIZE = floor(2^18-1)
 
 -- default config
-local addonConfig = {
-	enableUnitTooltips = true,
-	enableLFGTooltips = true,
-	enableFriendsTooltips = true,
-	enableLFGDropdown = true,
-	enableWhoTooltips = true,
-	enableWhoMessages = true,
-	enableGuildTooltips = true,
-	enableKeystoneTooltips = true,
-	showMainsScore = true,
-	showDropDownCopyURL = true,
-	showSimpleScoreColors = false,
-	showScoreInCombat = true,
-	disableScoreColors = false,
-	alwaysExtendTooltip = false,
-	enableClientEnhancements = true,
-	showClientGuildBest = true,
-	displayWeeklyGuildBest = false,
-	showRaiderIOProfile = true,
-	enableProfileModifier = true,
-	inverseProfileModifier = false,
-	positionProfileAuto = true,
-	lockProfile = false,
-	profilePoint = { point = nil, x = 0, y = 0 },
-}
+local addonConfig
+do
+	addonConfig = {
+		enableUnitTooltips = true,
+		enableLFGTooltips = true,
+		enableFriendsTooltips = true,
+		enableLFGDropdown = true,
+		enableWhoTooltips = true,
+		enableWhoMessages = true,
+		enableGuildTooltips = true,
+		enableKeystoneTooltips = true,
+		showMainsScore = true,
+		showDropDownCopyURL = true,
+		showSimpleScoreColors = false,
+		showScoreInCombat = true,
+		disableScoreColors = false,
+		alwaysExtendTooltip = false,
+		enableClientEnhancements = true,
+		showClientGuildBest = true,
+		displayWeeklyGuildBest = false,
+		showRaiderIOProfile = true,
+		enableProfileModifier = true,
+		inverseProfileModifier = false,
+		positionProfileAuto = true,
+		lockProfile = false,
+		profilePoint = { point = nil, x = 0, y = 0 },
+	}
+
+	ns.addonConfig = addonConfig
+end
 
 -- session
 local uiHooks = {}
@@ -58,11 +64,6 @@ local configFrame
 local dataProviderQueue = {}
 local dataProvider
 
--- client
-local clientCharacters = {}
-local guildProviderCalled = false
-local guildBest = {}
-
 -- tooltip related hooks and storage
 local tooltipArgs = {}
 
@@ -71,9 +72,6 @@ local tooltipHooks = {
 		table.wipe(tooltipArgs)
 	end
 }
-
--- profile tooltip next to the LFD (or other frames)
-local profileTooltip = CreateFrame("GameTooltip", addonName .. "ProfileTooltip", UIParent, "GameTooltipTemplate")
 
 -- player
 local PLAYER_FACTION
@@ -300,7 +298,7 @@ do
 	-- bracket can be 10, 100, 0.1, 0.01, and so on
 	function RoundNumber(v, bracket)
 		bracket = bracket or 1
-		return math.floor(v/bracket + ((v >= 0 and 1) or -1 )* 0.5) * bracket
+		return floor(v/bracket + ((v >= 0 and 1) or -1 )* 0.5) * bracket
 	end
 
 	-- Find the dungeon in CONST_DUNGEONS corresponding to the data in argument
@@ -559,8 +557,6 @@ end
 -- addon functions
 local Init
 local InitConfig
-local ProfileTooltip_ShowNearFrame -- needs to be set here to be used in the config
-local ProfileTooltip_SetFrameDraggability -- needs to be set here to be used in the config
 do
 	-- update local reference to the correct savedvariable table
 	local function UpdateGlobalConfigVar()
@@ -573,6 +569,8 @@ do
 					return defaults[key]
 				end
 			})
+			-- update the namespace reference
+			ns.addonConfig = addonConfig
 		end
 	end
 
@@ -737,22 +735,7 @@ do
 				StaticPopup_Show("RAIDERIO_RELOADUI_CONFIRM")
 			end
 
-			-- snap Tooltip back to the PVEFrame when auto is turned on
-			if addonConfig.positionProfileAuto and PVEFrame:IsShown() then
-				ProfileTooltip_ShowNearFrame(PVEFrame, "BACKGROUND")
-			end
-
-			-- Draggability of profileTooltip frame
-			ProfileTooltip_SetFrameDraggability(not addonConfig.positionProfileAuto and not addonConfig.lockProfile)
-
-			-- Reset profile position to nil
-			if addonConfig.positionProfileAuto then
-				addonConfig.profilePoint = {
-					["point"] = nil,
-					["x"] = nil,
-					["y"] = nil
-				}
-			end
+			ns.PROFILE_UI.SaveConfig()
 		end
 
 		config = {
@@ -1070,18 +1053,7 @@ do
 
 					-- if the keyword "lock" is present in the command we toggle lock behavior on profile frame
 					if text:find("[Ll][Oo][Cc][Kk]") then
-						if addonConfig.positionProfileAuto then
-							DEFAULT_CHAT_FRAME:AddMessage(L.WARNING_LOCK_POSITION_FRAME_AUTO, 1, 1, 0)
-							return
-						end
-
-						if addonConfig.lockProfile then
-							DEFAULT_CHAT_FRAME:AddMessage(L.UNLOCKING_PROFILE_FRAME, 1, 1, 0)
-						else
-							DEFAULT_CHAT_FRAME:AddMessage(L.LOCKING_PROFILE_FRAME, 1, 1, 0)
-						end
-						addonConfig.lockProfile = not addonConfig.lockProfile
-						ProfileTooltip_SetFrameDraggability(not addonConfig.lockProfile)
+						ns.PROFILE_UI.ToggleLock()
 						return
 					end
 
@@ -1118,8 +1090,6 @@ end
 
 -- provider
 local AddProvider
-local AddClientCharacters
-local AddClientGuilds
 local GetScoreColor
 local GetPlayerProfile
 do
@@ -1314,7 +1284,7 @@ do
 			cache.maxDungeonUpgrades = 0
 
 			-- purge pre-bfa data until bfa season starts (but keep it if we're debugging so we can play with the UI)
-			if not DEBUG_MODE then
+			if not ns.DEBUG_MODE then
 				cache.legionScore = RoundNumber(cache.allScore, 10)
 				cache.legionMainScore = RoundNumber(cache.mainScore, 10)
 				cache.allScore = 0
@@ -1333,9 +1303,9 @@ do
 
 			-- if character exists in the clientCharacters list then override some data with higher precision
 			-- TODO: only do this if the clientCharacters data isn't too old compared to regular addon date?
-			if false or addonConfig.enableClientEnhancements then
+			if ns.CLIENT_CHARACTERS and addonConfig.enableClientEnhancements then
 				local nameAndRealm = name .. "-" .. realm
-				local clientData = clientCharacters[nameAndRealm]
+				local clientData = ns.CLIENT_CHARACTERS[nameAndRealm]
 
 				if clientData then
 					local keystoneData = clientData.mythic_keystone
@@ -1425,19 +1395,6 @@ do
 		assert(type(data) == "table" and type(data.name) == "string" and type(data.data) == "number" and type(data.region) == "string" and type(data.faction) == "number", "Raider.IO has been requested to load a database that isn't supported.")
 		-- queue it for later inspection
 		dataProviderQueue[#dataProviderQueue + 1] = data
-	end
-
-	function AddClientCharacters(data)
-		-- make sure the object is what we expect it to be like (TODO: check this more deeply?)
-		assert(type(data) == "table", "Raider.IO has been requested to load a client database that isn't supported.")
-		clientCharacters = data
-	end
-
-	function AddClientGuilds(data)
-		-- make sure the object is what we expect it to be like (TODO: check this more deeply?)
-		assert(type(data) == "table", "Raider.IO has been requested to load a client database that isn't supported.")
-		guildBest = data
-		guildProviderCalled = true
 	end
 
 	-- returns score color using item colors
@@ -1576,7 +1533,7 @@ do
 								best.dungeon = highestDungeon
 							end
 						end
-						if not dungeon then
+						if not best.dungeon then
 							best.dungeon = GetInstanceStatus()
 						end
 					end
@@ -1610,7 +1567,7 @@ do
 						output[i] = {L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
 						i = i + 1
 					end
-					if profile.keystoneTenPlus > 0 and (profile.keystoneFifteenPlus == 0 or showExtendedTooltip) then
+					if profile.keystoneTenPlus > 0 and (profile.keystoneFifteenPlus == 0 or addon:IsModifierKeyDown()) then
 						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
 						i = i + 1
 					end
@@ -2120,302 +2077,6 @@ do
 	end
 end
 
--- profile tooltip
-local ProfileTooltip_Update
--- local ProfileTooltip_ShowNearFrame -- defined further up as these are used in the config
--- local ProfileTooltip_SetFrameDraggability -- defined further up as these are used in the config
-do
-	-- force can either be "player", "target" or not defined
-	-- if force == player then always display player's profile
-	-- if force == target then always display the active player tooltip
-	-- if force is not defined, then the display depends on the modifier and the configuration
-	function ProfileTooltip_Update(force)
-		if false then return end -- DEBUG: NYI
-
-		--[=[
-
-		if not profileTooltip or not profileTooltip:GetOwner() then
-			return
-		end
-
-		local arg1, forceNoPadding, forceAddName, forceFaction, focusOnDungeonIndex, focusOnKeystoneLevel = tooltipArgs[1], tooltipArgs[2], tooltipArgs[3], tooltipArgs[4], tooltipArgs[5], tooltipArgs[6]
-
-		-- force player
-		if force == "player" then
-			arg1 = "player"
-		end
-
-		-- force target
-		if force ~= "target" then
-			if not arg1 then
-				arg1 = "player"
-			end
-
-			if not addonConfig.enableProfileModifier then
-				arg1 = "player"
-			else
-				if (not addonConfig.inverseProfileModifier and not addon:IsModifierKeyDown(true)) or (addonConfig.inverseProfileModifier and addon:IsModifierKeyDown(true)) then
-					arg1 = "player"
-				end
-			end
-		end
-
-		local profile = GetScore(arg1, nil, forceFaction)
-
-		-- sanity check that the profile exists
-		if not profile then
-			return
-		end
-
-		profileTooltip:ClearLines()
-
-		if arg1 == "player" then
-			profileTooltip:AddLine(L.MY_PROFILE_TITLE, 1, 0.85, 0, false)
-		else
-			profileTooltip:AddLine(L.PLAYER_PROFILE_TITLE, 1, 0.85, 0, false)
-		end
-
-		profileTooltip:AddDoubleLine(profile.name, GetFormattedScore(profile.allScore, profile.isPrevAllScore), 1, 1, 1, GetScoreColor(profile.allScore))
-
-		AddLegionScore(profileTooltip, profile)
-
-		if profile.mainScore > profile.allScore then
-			profileTooltip:AddDoubleLine(L.MAINS_SCORE, profile.mainScore, 1, 1, 1, GetScoreColor(profile.mainScore))
-		end
-
-		profileTooltip:AddLine(" ")
-		profileTooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0, false)
-
-		local dungeons = {}
-		for dungeonIndex, keyLevel in ipairs(profile.dungeons) do
-			table.insert(dungeons, {
-				index = dungeonIndex,
-				shortName = CONST_DUNGEONS[dungeonIndex].shortNameLocale,
-				keyLevel = keyLevel,
-				upgrades = profile.dungeonUpgrades[dungeonIndex] or 0,
-				fractionalTime = profile.dungeonTimes[dungeonIndex] or 0
-			})
-		end
-
-		table.sort(dungeons, CompareDungeon)
-
-		for i, dungeon in ipairs(dungeons) do
-			local colorDungeonName = COLOR_WHITE
-			local colorDungeonLevel = COLOR_WHITE
-
-			local keyLevel = dungeon.keyLevel
-			if keyLevel ~= 0 then
-				if profile.isEnhanced then
-					if dungeon.upgrades == 0 then
-						colorDungeonLevel = COLOR_GREY
-					end
-					keyLevel = GetStarsForUpgrades(dungeon.upgrades) .. keyLevel
-				else
-					keyLevel = "+" .. keyLevel
-				end
-			else
-				keyLevel = "-"
-				colorDungeonLevel = COLOR_GREY
-			end
-
-			if focusOnDungeonIndex and focusOnDungeonIndex == dungeon.index then
---				TODO: Add color depending if it's an upgrade or a downgrade
---				if focusOnKeystoneLevel then
---					if dungeon.keyLevel < focusOnKeystoneLevel  then
---						-- green
---						colorDungeonName = { r = 0.12, g = 1, b = 0 }
---						colorDungeonLevel = { r = 0.12, g = 1, b = 0 }
---					elseif dungeon.keyLevel > focusOnKeystoneLevel then
---						-- purple
---						colorDungeonName = { r = 0.78, g = 0, b = 1 }
---						colorDungeonLevel = { r = 0.78, g = 0, b = 1 }
---					else
---						-- blue
---						colorDungeonName = { r = 0, g = 0.51, b = 1 }
---						colorDungeonLevel = { r = 0, g = 0.51, b = 1 }
---					end
---				else
-					colorDungeonName = COLOR_GREEN
-					colorDungeonLevel = COLOR_GREEN
---				end
-			end
-
-			profileTooltip:AddDoubleLine(dungeon.shortName, keyLevel, colorDungeonName.r, colorDungeonName.g, colorDungeonName.b, colorDungeonLevel.r, colorDungeonLevel.g, colorDungeonLevel.b)
-		end
-
-		if OUTDATED_DAYS[CONST_PROVIDER_DATA_MYTHICPLUS] and OUTDATED_DAYS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] > 1 then
-			profileTooltip:AddLine(" ")
-			profileTooltip:AddLine(format(L.OUTDATED_DATABASE, OUTDATED_DAYS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
-		elseif OUTDATED_HOURS[CONST_PROVIDER_DATA_MYTHICPLUS] and OUTDATED_HOURS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] > 12 then
-			profileTooltip:AddLine(" ")
-			profileTooltip:AddLine(format(L.OUTDATED_DATABASE_HOURS, OUTDATED_HOURS[CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
-		end
-
-		profileTooltip:Show()
-		--]=]
-	end
-
-	function ProfileTooltip_ShowNearFrame(frame, forceFrameStrata, force)
-		if false then return end -- DEBUG: NYI
-
-		--[=[
-		if not addonConfig.showRaiderIOProfile then
-			return
-		end
-
-		profileTooltip:SetOwner(frame, "ANCHOR_NONE")
-		profileTooltip:ClearAllPoints()
-		profileTooltip:SetPoint("TOPLEFT", frame, "TOPRIGHT")
-
-		profileTooltip:SetFrameStrata(forceFrameStrata or frame:GetFrameStrata())
-
-		ProfileTooltip_Update(force)
-		--]=]
-	end
-
-	local function ProfileTooltip_OnDragStop(self)
-		self:StopMovingOrSizing()
-		local point, _, _, x, y = self:GetPoint()
-		local p = addonConfig.profilePoint or {}
-		p.point, p.x, p.y = point, x, y
-		addonConfig.profilePoint = p
-	end
-
-	function ProfileTooltip_SetFrameDraggability(draggable)
-		profileTooltip:SetMovable(draggable)
-		profileTooltip:EnableMouse(draggable)
-		if draggable then
-			profileTooltip:RegisterForDrag("LeftButton")
-			profileTooltip:SetScript("OnDragStart", profileTooltip.StartMoving)
-			profileTooltip:SetScript("OnDragStop", ProfileTooltip_OnDragStop)
-		else
-			profileTooltip:RegisterForDrag(nil)
-			profileTooltip:SetScript("OnDragStart", nil)
-			profileTooltip:SetScript("OnDragStop", nil)
-		end
-	end
-end
-
--- Guild Best
-RaiderIO_GuildBestMixin = {}
-RaiderIO_GuildBestRunMixin = {}
-RaiderIO_GuildSwitchMixin = {}
-RaiderIO_SwitchGuildBestMixin = {}
-do
-	function RaiderIO_SwitchGuildBestMixin:OnLoad()
-		self.text:SetFontObject("GameFontNormalTiny2")
-		self.text:SetText(L["CHECKBOX_DISPLAY_WEEKLY"])
-		self.text:SetPoint("LEFT", 15, 0)
-		self.text:SetJustifyH("LEFT")
-		self:SetSize(15, 15)
-	end
-
-	function RaiderIO_SwitchGuildBestMixin:OnShow()
-		self:SetChecked(addonConfig.displayWeeklyGuildBest)
-	end
-
-	function RaiderIO_GuildBestMixin:SwitchBestRun()
-		addonConfig.displayWeeklyGuildBest = not addonConfig.displayWeeklyGuildBest
-
-		self:SetUp(GetGuildFullName("player"))
-	end
-
-	function RaiderIO_GuildBestMixin:SetUp(guildFullname)
-		local bestRuns = guildBest[guildFullname] or {}
-
-		local keyBest = "season_best"
-		local title = L["GUILD_BEST_SEASON"]
-
-		if addonConfig.displayWeeklyGuildBest then
-			keyBest = "weekly_best"
-			title = L["GUILD_BEST_WEEKLY"]
-		end
-
-		self.SubTitle:SetText(title)
-
-		self.bestRuns = (bestRuns and bestRuns[keyBest]) or {};
-
-		self:Reset()
-
-		if not self.bestRuns or #self.bestRuns == 0 then
-			self.GuildBestNoRun:Show()
-			return
-		end
-
-		for i, run in ipairs(self.bestRuns) do
-			local frame = self.GuildBests[i]
-
-			if (not frame) then
-				frame = CreateFrame("Frame", nil, GuildBestFrame, "GuildBestRunTemplate")
-
-				frame:SetPoint("TOP", self.GuildBests[i-1], "BOTTOM")
-			end
-
-			frame:SetUp(run)
-			frame:Show()
-		end
-	end
-
-	function RaiderIO_GuildBestMixin:Reset()
-		self.GuildBestNoRun:Hide()
-		self.GuildBestNoRun.Text:SetText(L["NO_GUILD_RECORD"])
-		if self.GuildBests then
-			for _, frame in ipairs(self.GuildBests) do
-				frame:Hide()
-			end
-		end
-	end
-
-	function RaiderIO_GuildBestRunMixin:SetUp(runInfo)
-		self.runInfo = runInfo
-
-		self.CharacterName:SetText(GetDungeonWithData("id", self.runInfo.zone_id).shortNameLocale)
-
-		self.Level:SetTextColor(COLOR_WHITE.r, COLOR_WHITE.g, COLOR_WHITE.b)
-		if self.runInfo.upgrades == 0 then
-			self.Level:SetTextColor(COLOR_GREY.r, COLOR_GREY.g, COLOR_GREY.b)
-		end
-		self.Level:SetText(GetStarsForUpgrades(self.runInfo.upgrades) .. self.runInfo.level)
-	end
-
-	function RaiderIO_GuildBestRunMixin:OnEnter()
-		GameTooltip:SetOwner(self, "ANCHOR_LEFT");
-
-		GameTooltip:SetText(C_ChallengeMode.GetMapUIInfo(GetDungeonWithData("id", self.runInfo.zone_id).keystone_instance), 1, 1, 1);
-
-		local upgradeStr = ""
-		if self.runInfo.upgrades > 0 then
-			upgradeStr = " (" .. GetStarsForUpgrades(self.runInfo.upgrades, true) .. ")"
-		end
-
-		GameTooltip:AddLine(MYTHIC_PLUS_POWER_LEVEL:format(self.runInfo.level) .. upgradeStr, 1, 1, 1);
-		GameTooltip:AddLine(self.runInfo.clear_time, 1, 1, 1);
-
-		if self.runInfo.party then
-			GameTooltip:AddLine(" ");
-
-			for i, member in ipairs(self.runInfo.party) do
-				if (member.name) then
-					local classInfo = C_CreatureInfo.GetClassInfo(member.class_id);
-					local color = (classInfo and RAID_CLASS_COLORS[classInfo.classFile]) or NORMAL_FONT_COLOR;
-					local texture;
-					if (member.role == "tank") then
-						texture = CreateAtlasMarkup("roleicon-tiny-tank");
-					elseif (member.role == "dps") then
-						texture = CreateAtlasMarkup("roleicon-tiny-dps");
-					elseif (member.role == "healer") then
-						texture = CreateAtlasMarkup("roleicon-tiny-healer");
-					end
-
-					GameTooltip:AddLine(MYTHIC_PLUS_LEADER_BOARD_NAME_ICON:format(texture, member.name), color.r, color.g, color.b);
-				end
-			end
-		end
-
-		GameTooltip:Show();
-	end
-end
-
 -- addon events
 do
 	-- apply hooks to interface elements
@@ -2486,7 +2147,7 @@ do
 
 				-- update the outdated counter with the largest count
 				if isOutdated then
-					isAnyProviderOutdated = isAnyProviderOutdated and math.max(isAnyProviderOutdated, outdatedDays) or outdatedDays
+					isAnyProviderOutdated = isAnyProviderOutdated and max(isAnyProviderOutdated, outdatedDays) or outdatedDays
 				end
 
 				-- append provider to the group
@@ -2531,8 +2192,6 @@ do
 
 		-- hide the provider functions from the public API
 		_G.RaiderIO.AddProvider = nil
-		_G.RaiderIO.AddClientCharacters = nil
-		_G.RaiderIO.AddClientGuilds = nil
 
 		-- debug.lua needs this for querying (also adding the tooltip bit because for now only these two are needed for debug.lua to function...)
 		ns.dataProvider = dataProvider
@@ -2653,7 +2312,7 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.LFGListApplicationViewerScrollFrameButton1 then
 			local hooked = {}
-			local OnEnter, OnLeave, ProfileTooltip_OnHide
+			local OnEnter, OnLeave
 			-- application queue
 			function OnEnter(self)
 				if not addonConfig.enableLFGTooltips then
@@ -2678,33 +2337,13 @@ do
 						local _, activityID, _, title, description = C_LFGList.GetActiveEntryInfo()
 						local keystoneLevel = GetKeystoneLevel(title) or GetKeystoneLevel(description) or 0
 						ShowTooltip(GameTooltip, bor(TooltipProfileOutput.PADDING(), ProfileOutput.ADD_LFD), fullName, nil, PLAYER_FACTION, true, LFD_ACTIVITYID_TO_DUNGEONID[activityID], keystoneLevel)
-						-- RaiderIO Profile
-						if addonConfig.positionProfileAuto then
-							ProfileTooltip_ShowNearFrame(GameTooltip, nil, "target")
-						else
-							ProfileTooltip_Update("target")
-						end
-						if not hooked.applicant then
-							hooked.applicant = 1
-							GameTooltip:HookScript("OnHide", ProfileTooltip_OnHide)
-						end
+						ns.PROFILE_UI.ShowProfile(fullName, nil, PLAYER_FACTION, GameTooltip)
 					end
 				end
 			end
 			function OnLeave(self)
 				if self.applicantID or self.memberIdx then
 					GameTooltip:Hide()
-				end
-			end
-			function ProfileTooltip_OnHide(self)
-				if PVEFrame:IsShown() then
-					if addonConfig.positionProfileAuto then
-						ProfileTooltip_ShowNearFrame(PVEFrame, "BACKGROUND")
-					else
-						ProfileTooltip_Update()
-					end
-				else
-					profileTooltip:Hide()
 				end
 			end
 			-- search results
@@ -2714,16 +2353,7 @@ do
 					local keystoneLevel = GetKeystoneLevel(title) or GetKeystoneLevel(description) or 0
 					-- Update game tooltip with player info
 					ShowTooltip(tooltip, bor(TooltipProfileOutput.PADDING(), ProfileOutput.ADD_LFD), leaderName, nil, PLAYER_FACTION, true, LFD_ACTIVITYID_TO_DUNGEONID[activityID], keystoneLevel)
-					-- RaiderIO Profile
-					if addonConfig.positionProfileAuto then
-						ProfileTooltip_ShowNearFrame(tooltip)
-					else
-						ProfileTooltip_Update()
-					end
-					if not hooked.applicant then
-						hooked.applicant = 1
-						GameTooltip:HookScript("OnHide", ProfileTooltip_OnHide)
-					end
+					ns.PROFILE_UI.ShowProfile(leaderName, nil, PLAYER_FACTION, tooltip)
 				end
 			end
 			hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntryTooltip)
@@ -3266,67 +2896,33 @@ do
 
 	-- My Profile
 	uiHooks[#uiHooks + 1] = function()
-		if not addonConfig.showRaiderIOProfile then
+		if _G.PVEFrame then
+			local function Show()
+				if not addonConfig.showRaiderIOProfile then return end
+				ns.PROFILE_UI.ShowProfile("player")
+			end
+			local function Hide()
+				ns.PROFILE_UI.HideProfile()
+			end
+			PVEFrame:HookScript("OnShow", Show)
+			PVEFrame:HookScript("OnHide", Hide)
 			return 1
 		end
-
-		local function ProfileTooltip_Show()
-			if not profileTooltip:IsShown() then
-				ProfileTooltip_ShowNearFrame(PVEFrame, "BACKGROUND", "player")
-
-				if not addonConfig.positionProfileAuto then
-					if addonConfig.profilePoint.point ~= nil then
-						profileTooltip:ClearAllPoints()
-						profileTooltip:SetPoint(addonConfig.profilePoint.point, nil, addonConfig.profilePoint.point, addonConfig.profilePoint.x, addonConfig.profilePoint.y)
-					end
-
-					if not addonConfig.lockProfile then
-						ProfileTooltip_SetFrameDraggability(true)
-					end
-				end
-			end
-		end
-
-		local function ProfileTooltip_Hide()
-			profileTooltip:Hide()
-		end
-
-		hooksecurefunc(PVEFrame, "Show", ProfileTooltip_Show)
-		hooksecurefunc(PVEFrame, "Hide", ProfileTooltip_Hide)
-		return 1
 	end
 
 	-- Guild Weekly Best
 	uiHooks[#uiHooks + 1] = function()
-		if not addonConfig.showClientGuildBest or not guildProviderCalled then
-			return 1
-		end
-
-		if _G.ChallengesFrame then
-			local function GuildBest_Show()
-				GuildBestFrame:ClearAllPoints()
-				GuildBestFrame:SetFrameStrata("HIGH")
-
-				local guildFullname = GetGuildFullName("player")
-
-				if not guildFullname then
-					return
-				end
-
-				GuildBestFrame:SetUp(guildFullname)
-
-				GuildBestFrame:SetPoint("BOTTOMRIGHT", ChallengesFrame.DungeonIcons[#ChallengesFrame.DungeonIcons], "TOPRIGHT")
+		if _G.ChallengesFrame and _G.PVEFrame then
+			local function Show()
+				if not ns.GUILD_BEST_DATA or not addonConfig.showClientGuildBest then return end
 				GuildBestFrame:Show()
 			end
-
-			local function GuildBest_Hide()
+			local function Hide()
 				GuildBestFrame:Hide()
 			end
-
-			hooksecurefunc(ChallengesFrame, "Show", GuildBest_Show)
-			hooksecurefunc(ChallengesFrame, "Hide", GuildBest_Hide)
-			hooksecurefunc(PVEFrame, "Hide", GuildBest_Hide)
-
+			ChallengesFrame:HookScript("OnShow", Show)
+			ChallengesFrame:HookScript("OnHide", Hide)
+			PVEFrame:HookScript("OnHide", Hide)
 			return 1
 		end
 	end
@@ -3376,8 +2972,6 @@ _G.RaiderIO = {
 
 -- PLEASE DO NOT USE (we need it public for the sake of the database modules)
 _G.RaiderIO.AddProvider = AddProvider
-_G.RaiderIO.AddClientCharacters = AddClientCharacters
-_G.RaiderIO.AddClientGuilds = AddClientGuilds
 
 -- register events and wait for the addon load event to fire
 addon:SetScript("OnEvent", function(_, event, ...) addon[event](addon, event, ...) end)
