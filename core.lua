@@ -1445,19 +1445,17 @@ do
 
 			if dataType == CONST_PROVIDER_DATA_MYTHICPLUS then
 
-				if profile.allScore >= 0 then
-					output[i] = {L.RAIDERIO_MP_SCORE, GetFormattedScore(profile.allScore, profile.isPrevAllScore), 1, 0.85, 0, GetScoreColor(profile.allScore)}
-					i = i + 1
-				else
-					output[i] = {L.RAIDERIO_MP_SCORE, L.UNKNOWN_SCORE, 1, 0.85, 0, 1, 1, 1}
-					i = i + 1
-				end
-
 				if profile.legionScore and profile.legionScore > 0 and (not profile.legionMainScore or profile.legionMainScore <= profile.legionScore) then
 					output[i] = {L.LEGION_SCORE, GetFormattedScore(profile.legionScore), 1, 1, 1, 1, 1, 1}
 					i = i + 1
 				elseif profile.legionMainScore and (not profile.legionScore or profile.legionMainScore > profile.legionScore) then
 					output[i] = {L.LEGION_MAIN_SCORE, GetFormattedScore(profile.legionMainScore), 1, 1, 1, 1, 1, 1}
+					i = i + 1
+				elseif profile.allScore >= 0 then
+					output[i] = {L.RAIDERIO_MP_SCORE, GetFormattedScore(profile.allScore, profile.isPrevAllScore), 1, 0.85, 0, GetScoreColor(profile.allScore)}
+					i = i + 1
+				else
+					output[i] = {L.RAIDERIO_MP_SCORE, L.UNKNOWN_SCORE, 1, 0.85, 0, 1, 1, 1}
 					i = i + 1
 				end
 

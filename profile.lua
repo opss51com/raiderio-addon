@@ -1,3 +1,7 @@
+-- TODO: inverse modifier behavior
+-- TODO: non-auto positioning behavior
+-- TODO: unlocked positioning behavior
+
 local addonName, ns = ...
 
 -- constants
@@ -49,19 +53,17 @@ do
 	end
 
 	local function PopulateProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel)
-		--[=[
-		-- TODO: logic stuff needs fixing
 		if ns.addonConfig.enableProfileModifier then
-			if (ns.addonConfig.inverseProfileModifier and ns.addon:IsModifierKeyDown(true)) or (not ns.addonConfig.inverseProfileModifier and not addon:IsModifierKeyDown(true)) then
-				unitOrNameOrNameAndRealm = "player"
+			if (ns.addonConfig.inverseProfileModifier and not ns.addon:IsModifierKeyDown(true)) or (not ns.addonConfig.inverseProfileModifier and ns.addon:IsModifierKeyDown(true)) then
+				unitOrNameOrNameAndRealm, realmOrNil = "player"
 			end
 		end
-		--]=]
-		local profile, hasData = ns.GetPlayerProfile(bit.bor(ns.ProfileOutput.MYTHICPLUS, ns.ProfileOutput.TOOLTIP), unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, true, lfdActivityID, keystoneLevel)
-		if not profile then return end
-		profile = profile.profile
+		local output, hasProfile = ns.GetPlayerProfile(bit.bor(ns.ProfileOutput.MYTHICPLUS, ns.ProfileOutput.TOOLTIP), unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, true, lfdActivityID, keystoneLevel)
+		if not hasProfile then return end
+		local profile = output.profile
 		if not profile then return end
 		local isPlayer = unitOrNameOrNameAndRealm == "player"
+		-- the focused dungeon based on LFD activityID
 		local dungeon
 		if lfdActivityID then
 			local dungeonID = ns.LFD_ACTIVITYID_TO_DUNGEONID[lfdActivityID]
@@ -70,6 +72,7 @@ do
 			end
 		end
 		local focusOnDungeonIndex = dungeon and dungeon.index or nil
+		-- make a list over the dungeons the profile has done
 		local dungeons = {}
 		for dungeonIndex, keyLevel in ipairs(profile.dungeons) do
 			local d = ns.CONST_DUNGEONS[dungeonIndex]
@@ -83,15 +86,17 @@ do
 			}
 		end
 		table.sort(dungeons, ns.CompareDungeon)
+		-- add the tooltip header and regular tooltip lines
 		ProfileTooltip:AddLine(L[isPlayer and "MY_PROFILE_TITLE" or "PLAYER_PROFILE_TITLE"], 1, 0.85, 0, false)
-		for i = 1, #profile do
-			local line = profile[i]
+		for i = 1, output.length do
+			local line = output[i]
 			if type(line) == "table" then
 				ProfileTooltip:AddDoubleLine(line[1], line[2], line[3], line[4], line[5], line[6], line[7], line[8], line[9], line[10])
 			else
 				ProfileTooltip:AddLine(line)
 			end
 		end
+		-- add the dungeons list of the best runs
 		ProfileTooltip:AddLine(" ")
 		ProfileTooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0, false)
 		for i, dungeon in ipairs(dungeons) do
@@ -111,12 +116,13 @@ do
 				keyLevel = "-"
 				colorDungeonLevel = COLOR_GREY
 			end
-			if focusOnDungeonIndex and focusOnDungeonIndex == dungeon.index then
+			if focusOnDungeonIndex == dungeon.index then
 				colorDungeonName = COLOR_GREEN
 				colorDungeonLevel = COLOR_GREEN
 			end
 			ProfileTooltip:AddDoubleLine(dungeon.shortName, keyLevel, colorDungeonName.r, colorDungeonName.g, colorDungeonName.b, colorDungeonLevel.r, colorDungeonLevel.g, colorDungeonLevel.b)
 		end
+		-- TODO: this working right?
 		if ns.OUTDATED_DAYS[ns.CONST_PROVIDER_DATA_MYTHICPLUS] and ns.OUTDATED_DAYS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] > 1 then
 			ProfileTooltip:AddLine(" ")
 			ProfileTooltip:AddLine(format(L.OUTDATED_DATABASE, ns.OUTDATED_DAYS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
