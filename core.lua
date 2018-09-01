@@ -99,10 +99,10 @@ local ProfileOutput = {
 	TOOLTIP = 32,
 	ADD_PADDING = 64,
 	ADD_NAME = 128,
-	ADD_BEST_RUN = 256,
-	ADD_LFD = 512,
-	FOCUS_DUNGEON = 1024,
-	FOCUS_KEYSTONE = 2048,
+	-- these makes the tooltip not cache the output for dynamic purposes
+	ADD_LFD = 256,
+	FOCUS_DUNGEON = 512,
+	FOCUS_KEYSTONE = 1024,
 }
 
 -- default no-tooltip and default tooltip flags used as baseline in several places
@@ -1414,7 +1414,6 @@ do
 			local isModKeyDownSticky = band(outputFlag, ProfileOutput.MOD_KEY_DOWN_STICKY) == ProfileOutput.MOD_KEY_DOWN_STICKY
 			local addPadding = band(outputFlag, ProfileOutput.ADD_PADDING) == ProfileOutput.ADD_PADDING
 			local addName = band(outputFlag, ProfileOutput.ADD_NAME) == ProfileOutput.ADD_NAME
-			local addBestRun = band(outputFlag, ProfileOutput.ADD_BEST_RUN) == ProfileOutput.ADD_BEST_RUN
 			local addLFD = band(outputFlag, ProfileOutput.ADD_LFD) == ProfileOutput.ADD_LFD
 			local focusDungeon = band(outputFlag, ProfileOutput.FOCUS_DUNGEON) == ProfileOutput.FOCUS_DUNGEON
 			local focusKeystone = band(outputFlag, ProfileOutput.FOCUS_KEYSTONE) == ProfileOutput.FOCUS_KEYSTONE
@@ -1469,7 +1468,7 @@ do
 					end
 				end
 
-				if addBestRun or addLFD or focusDungeon then
+				do
 					local best = { dungeon = nil, level = 0, text = nil }
 
 					if addLFD then
@@ -1483,6 +1482,18 @@ do
 						local hasArgs, dungeonIndex = ...
 						if hasArgs == true then
 							best.dungeon = CONST_DUNGEONS[dungeonIndex] or best.dungeon
+						end
+					end
+
+					if focusKeystone then
+						local hasArgs, arg1, arg2 = ...
+						if hasArgs == true then
+							if ns.DEBUG_MODE then -- TODO
+								output[i] = "focusKeystone arg1 = " .. tostring(arg1)
+								i = i + 1
+								output[i] = "focusKeystone arg2 = " .. tostring(arg2)
+								i = i + 1
+							end
 						end
 					end
 
@@ -1536,18 +1547,9 @@ do
 						output[i] = {L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
 						i = i + 1
 					end
+
 					if profile.keystoneTenPlus > 0 and (profile.keystoneFifteenPlus == 0 or addon:IsModifierKeyDown()) then
 						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
-						i = i + 1
-					end
-				end
-
-				if focusKeystone then
-					local hasArgs, arg1, arg2 = ...
-					if hasArgs == true then
-						output[i] = "focusKeystone arg1 = " .. tostring(arg1)
-						i = i + 1
-						output[i] = "focusKeystone arg2 = " .. tostring(arg2)
 						i = i + 1
 					end
 				end
