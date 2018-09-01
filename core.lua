@@ -278,7 +278,6 @@ local IsUnitMaxLevel
 local GetWeeklyAffix
 local GetAverageScore
 local GetStarsForUpgrades
-local GetGuildFullName
 local GetFormattedScore
 local GetFormattedRunCount
 do
@@ -507,20 +506,6 @@ do
 		else
 			return stars
 		end
-	end
-
-	function GetGuildFullName(unit)
-		local guildName, _, _, guildRealm = GetGuildInfo(unit)
-
-		if not guildName then
-			return nil
-		end
-
-		if not guildRealm then
-			_, guildRealm = GetNameAndRealm(unit)
-		end
-
-		return guildName.."-"..guildRealm
 	end
 
 	-- returns score formatted for current or prev season
@@ -2758,6 +2743,7 @@ do
 	ns.IS_DB_OUTDATED = IS_DB_OUTDATED
 	ns.OUTDATED_DAYS = OUTDATED_DAYS
 	ns.OUTDATED_HOURS = OUTDATED_HOURS
+	ns.GetNameAndRealm = GetNameAndRealm
 	ns.CompareDungeon = CompareDungeon
 	ns.GetStarsForUpgrades = GetStarsForUpgrades
 	ns.ProfileOutput = ProfileOutput

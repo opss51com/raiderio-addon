@@ -3,6 +3,21 @@ local addonName, ns = ...
 -- constants
 local L = ns.L
 
+-- utility functions
+local GetGuildFullName
+do
+	function GetGuildFullName(unit)
+		local guildName, _, _, guildRealm = GetGuildInfo(unit)
+		if not guildName then
+			return
+		end
+		if not guildRealm then
+			_, guildRealm = ns.GetNameAndRealm(unit)
+		end
+		return guildName .. "-" .. guildRealm
+	end
+end
+
 RaiderIO_GuildBestMixin = {}
 
 function RaiderIO_GuildBestMixin:SwitchBestRun()
@@ -12,7 +27,7 @@ function RaiderIO_GuildBestMixin:SwitchBestRun()
 end
 
 function RaiderIO_GuildBestMixin:SetUp(guildFullName)
-	local bestRuns = ns.GUILD_BEST_DATA[guildFullName] or {}
+	local bestRuns = ns.GUILD_BEST_DATA and ns.GUILD_BEST_DATA[guildFullName] or {}
 
 	local keyBest = "season_best"
 	local title = L.GUILD_BEST_SEASON
@@ -37,7 +52,7 @@ function RaiderIO_GuildBestMixin:SetUp(guildFullName)
 		local frame = self.GuildBests[i]
 
 		if (not frame) then
-			frame = CreateFrame("Frame", nil, GuildBestFrame, "GuildBestRunTemplate")
+			frame = CreateFrame("Frame", nil, RaiderIOGuildBestFrame, "GuildBestRunTemplate")
 
 			frame:SetPoint("TOP", self.GuildBests[i-1], "BOTTOM")
 		end
@@ -58,6 +73,7 @@ function RaiderIO_GuildBestMixin:Reset()
 end
 
 function RaiderIO_GuildBestMixin:OnShow()
+	if not ChallengesFrame then return self:Hide() end
 	local guildFullName = GetGuildFullName("player")
 	if not guildFullName then return self:Hide() end
 	self:ClearAllPoints()

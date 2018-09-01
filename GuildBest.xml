@@ -24,7 +24,7 @@
             <OnLeave function="GameTooltip_Hide"/>
         </Scripts>
     </Frame>
-    <Frame name="GuildBestFrame" parentKey="GuildBest" mixin="RaiderIO_GuildBestMixin" hidden="true">
+    <Frame name="RaiderIOGuildBestFrame" parentKey="GuildBest" mixin="RaiderIO_GuildBestMixin" hidden="true">
         <Size x="90" y="105" />
         <Layers>
             <Layer level="BACKGROUND">
