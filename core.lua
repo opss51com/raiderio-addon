@@ -923,7 +923,7 @@ do
 
 			config:CreatePadding()
 			config:CreateHeadline(L.TOOLTIP_PROFILE)
-			config:CreateOptionToggle(L.SHOW_RAIDERIO_PROFILE, L.SHOW_RAIDERIO_PROFILE_DESC, "showRaiderIOProfile", {["needReload"] = true})
+			config:CreateOptionToggle(L.SHOW_RAIDERIO_PROFILE, L.SHOW_RAIDERIO_PROFILE_DESC, "showRaiderIOProfile")
 			config:CreateOptionToggle(L.SHOW_LEADER_PROFILE, L.SHOW_LEADER_PROFILE_DESC, "enableProfileModifier")
 			config:CreateOptionToggle(L.INVERSE_PROFILE_MODIFIER, L.INVERSE_PROFILE_MODIFIER_DESC, "inverseProfileModifier")
 			config:CreateOptionToggle(L.ENABLE_AUTO_FRAME_POSITION, L.ENABLE_AUTO_FRAME_POSITION_DESC, "positionProfileAuto")
@@ -931,8 +931,8 @@ do
 
 			config:CreatePadding()
 			config:CreateHeadline(L.RAIDERIO_CLIENT_CUSTOMIZATION)
-			config:CreateOptionToggle(L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS, L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS_DESC, "enableClientEnhancements", {["needReload"] = true})
-			config:CreateOptionToggle(L.SHOW_CLIENT_GUILD_BEST, L.SHOW_CLIENT_GUILD_BEST_DESC, "showClientGuildBest", {["needReload"] = true})
+			config:CreateOptionToggle(L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS, L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS_DESC, "enableClientEnhancements")
+			config:CreateOptionToggle(L.SHOW_CLIENT_GUILD_BEST, L.SHOW_CLIENT_GUILD_BEST_DESC, "showClientGuildBest")
 
 			config:CreatePadding()
 			config:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
@@ -1076,6 +1076,7 @@ end
 local AddProvider
 local GetScoreColor
 local GetPlayerProfile
+local HasPlayerProfile
 do
 	-- unpack the payload
 	local function UnpackPayload(data)
@@ -1691,6 +1692,21 @@ do
 			return profile, hasData, canCacheProfile, reqMythicPlus and reqRaiding
 		end
 	end
+
+	-- checks if the player has a profile in any data provider
+	function HasPlayerProfile(queryName, queryRealm, queryFaction)
+		local name, realm, unit = GetNameAndRealm(queryName, queryRealm)
+		if name and realm then
+			local faction = type(queryFaction) == "number" and queryFaction or GetFaction(unit)
+			for i = 1, #CONST_PROVIDER_DATA_LIST do
+				local dataType = CONST_PROVIDER_DATA_LIST[i]
+				if GetProviderData(CONST_PROVIDER_DATA_LIST[i], name, realm, faction) then
+					return true
+				end
+			end
+			return false
+		end
+	end
 end
 
 -- tooltips
@@ -1976,6 +1992,9 @@ do
 
 		-- search.lua needs this for querying
 		ns.dataProvider = dataProvider
+
+		-- init the profiler now that the addon is fully loaded
+		ns.PROFILE_UI.Init()
 	end
 
 	-- we enter the world (after a loading screen, int/out of instances)
@@ -2744,6 +2763,7 @@ do
 	ns.ProfileOutput = ProfileOutput
 	ns.TooltipProfileOutput = TooltipProfileOutput
 	ns.GetPlayerProfile = GetPlayerProfile
+	ns.HasPlayerProfile = HasPlayerProfile
 	ns.ShowTooltip = ShowTooltip
 end
 
@@ -2758,6 +2778,7 @@ _G.RaiderIO = {
 	TooltipProfileOutput = TooltipProfileOutput,
 	DataProvider = CONST_PROVIDER_INTERFACE,
 	GetPlayerProfile = GetPlayerProfile,
+	HasPlayerProfile = HasPlayerProfile,
 	-- Calling GetFaction requires a unit and returns you 1 if it's Alliance, 2 if Horde, otherwise nil.
 	-- Calling GetScoreColor requires a Mythic+ score to be passed (a number value) and it returns r, g, b for that score.
 	-- RaiderIO.GetScoreColor(1234)

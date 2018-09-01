@@ -1,7 +1,3 @@
--- TODO: inverse modifier behavior
--- TODO: non-auto positioning behavior
--- TODO: unlocked positioning behavior
-
 local addonName, ns = ...
 
 -- constants
@@ -20,9 +16,12 @@ local FALLBACK_FRAME_STRATA = "BACKGROUND"
 local ProfileTooltip
 do
 	ProfileTooltip = CreateFrame("GameTooltip", addonName .. "ProfileTooltip", FALLBACK_FRAME, "GameTooltipTemplate")
+	ProfileTooltip:SetClampedToScreen(true)
 	ProfileTooltip:RegisterForDrag("LeftButton")
+	ProfileTooltip:SetScript("OnDragStart", ProfileTooltip.StartMoving)
 	ProfileTooltip:SetScript("OnDragStop", function()
 		ProfileTooltip:StopMovingOrSizing()
+		-- ProfileTooltip:SetUserPlaced(true)
 		local point, _, _, x, y = ProfileTooltip:GetPoint()
 		local p = ns.addonConfig.profilePoint or {}
 		p.point, p.x, p.y = point, x, y
@@ -33,6 +32,7 @@ end
 local IsFallbackShown
 local HookFrame
 local SetAnchor
+local SetUserAnchor
 local UpdateProfile
 local SetDrag
 do
@@ -53,10 +53,22 @@ do
 	end
 
 	local function PopulateProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel)
+		-- respect modifier and inverse modifier behavior for the profile tooltip
 		if ns.addonConfig.enableProfileModifier then
 			if (ns.addonConfig.inverseProfileModifier and not ns.addon:IsModifierKeyDown(true)) or (not ns.addonConfig.inverseProfileModifier and ns.addon:IsModifierKeyDown(true)) then
-				unitOrNameOrNameAndRealm, realmOrNil = "player"
+				-- this doublechecks if the original hover actually has data so we don't attempt to compare ours and theirs profiles when it only shows our own
+				if not ns.HasPlayerProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil) then
+					return
+				end
+				-- exception case where we actually don't want to show the player profile but the original hover profile
+				if not (not ns.addonConfig.showRaiderIOProfile and ns.addonConfig.enableProfileModifier and not ns.addonConfig.inverseProfileModifier) then
+					unitOrNameOrNameAndRealm, realmOrNil = "player"
+				end
 			end
+		end
+		-- do not show our own profile if the user doesn't want to see it
+		if not ns.addonConfig.showRaiderIOProfile and unitOrNameOrNameAndRealm == "player" then
+			return
 		end
 		local output, hasProfile = ns.GetPlayerProfile(bit.bor(ns.ProfileOutput.MYTHICPLUS, ns.ProfileOutput.TOOLTIP), unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, true, lfdActivityID, keystoneLevel)
 		if not hasProfile then return end
@@ -130,7 +142,6 @@ do
 			ProfileTooltip:AddLine(" ")
 			ProfileTooltip:AddLine(format(L.OUTDATED_DATABASE_HOURS, ns.OUTDATED_HOURS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
 		end
-		ProfileTooltip:Show()
 		return true
 	end
 
@@ -163,13 +174,16 @@ do
 		anchorFrame = IsFrame(anchorFrame) and anchorFrame or FALLBACK_FRAME
 		ProfileTooltip:SetOwner(anchorFrame, "ANCHOR_NONE")
 		ProfileTooltip:ClearAllPoints()
-		local userPlaced = ns.addonConfig.profilePoint
-		if userPlaced and userPlaced.point then
-			ProfileTooltip:SetPoint(userPlaced.point, UIParent, userPlaced.point, userPlaced.x, userPlaced.y)
-		elseif anchorFrame then
-			ProfileTooltip:SetPoint("TOPLEFT", anchorFrame, "TOPRIGHT", 0, 0)
-		end
+		ProfileTooltip:SetPoint("TOPLEFT", anchorFrame, "TOPRIGHT", 0, 0)
 		ProfileTooltip:SetFrameStrata(frameStrata or "MEDIUM")
+	end
+
+	function SetUserAnchor()
+		local p = ns.addonConfig.profilePoint or {}
+		ProfileTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+		ProfileTooltip:ClearAllPoints()
+		ProfileTooltip:SetPoint(p.point or "CENTER", UIParent, p.point or "CENTER", p.x or 0, p.y or 0)
+		ProfileTooltip:SetFrameStrata("MEDIUM")
 	end
 
 	function UpdateProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel)
@@ -187,21 +201,28 @@ do
 	end
 
 	function SetDrag(canDrag)
+		ProfileTooltip:SetParent(canDrag and UIParent or FALLBACK_FRAME)
 		ProfileTooltip:EnableMouse(canDrag)
 		ProfileTooltip:SetMovable(canDrag)
 	end
 end
 
-function ProfileTooltip.SaveConfig()
-	if ns.addonConfig.positionProfileAuto then
-		local p = ns.addonConfig.profilePoint or {}
-		p.point, p.x, p.y = nil
-		ns.addonConfig.profilePoint = p
-		if IsFallbackShown() then
-			SetAnchor(FALLBACK_FRAME, FALLBACK_FRAME_STRATA)
-		end
-	end
+function ProfileTooltip.Init()
+	-- set or unset the ability to drag the frame around
 	SetDrag(not ns.addonConfig.positionProfileAuto and not ns.addonConfig.lockProfile)
+	-- if auto is enabled reset the point and anchor to the correct frame
+	if ns.addonConfig.positionProfileAuto then
+		SetAnchor(FALLBACK_FRAME, FALLBACK_FRAME_STRATA)
+	else
+		SetUserAnchor()
+	end
+end
+
+function ProfileTooltip.SaveConfig()
+	-- same procedure as logging in by adjusting drag state and anchor based on preferences
+	ProfileTooltip.Init()
+	-- update the tooltip visuals in case the profile is visible
+	UpdateProfile(true)
 end
 
 function ProfileTooltip.ToggleLock()
@@ -224,13 +245,19 @@ function ProfileTooltip.ShowProfile(unitOrNameOrNameAndRealm, realmOrNil, factio
 	end
 	if ns.addonConfig.positionProfileAuto then
 		SetAnchor(anchorFrame, frameStrata)
+	else
+		SetUserAnchor()
 	end
 	UpdateProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel)
 end
 
 function ProfileTooltip.HideProfile(useFallback)
 	if useFallback == true and IsFallbackShown() then
-		SetAnchor(FALLBACK_FRAME, FALLBACK_FRAME_STRATA)
+		if ns.addonConfig.positionProfileAuto then
+			SetAnchor(FALLBACK_FRAME, FALLBACK_FRAME_STRATA)
+		else
+			SetUserAnchor()
+		end
 		ProfileTooltip.UpdateTooltip()
 	else
 		ProfileTooltip:Hide()
