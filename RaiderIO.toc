@@ -8,6 +8,7 @@
 
 db/db_regions.lua
 db/db_realms.lua
+db/db_dungeons.lua
 db/db_score_tiers.lua
 db/db_score_stats.lua
 
