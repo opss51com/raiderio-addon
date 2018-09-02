@@ -1990,7 +1990,9 @@ do
 		table.wipe(profileCache)
 		table.wipe(profileCacheTooltip)
 		-- store the character we're logged on (used by the client to queue an update, once we log out from the game of course)
-		_G.RaiderIO_LastCharacter = format("%s-%s-%s", PLAYER_REGION, GetNameAndRealm("player"))
+		local name, realm = GetNameAndRealm("player")
+		local realmSlug = GetRealmSlug(realm)
+		_G.RaiderIO_LastCharacter = format("%s-%s-%s", PLAYER_REGION, name, realmSlug)
 	end
 
 	-- modifier key is toggled, update the tooltip if needed
