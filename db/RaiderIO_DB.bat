@@ -15,9 +15,9 @@ for %%r in (
 	set r1=!r:~1,2!
 	set r2=!r:~4,-1!
 
+::"R	Raiding"
 	for %%t in (
 		"M	Mythic Plus"
-		"R	Raiding"
 	) do (
 		set t=%%t
 		set t1=!t:~1,1!
@@ -48,6 +48,8 @@ for %%r in (
 			set lf=!f2!
 			call :LoCase lr
 			call :LoCase lf
+
+			echo !d! !f!
 
 			rmdir /s /q "!d!"
 			mkdir "!d!"
