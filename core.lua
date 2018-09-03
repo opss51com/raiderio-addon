@@ -1543,7 +1543,7 @@ do
 						i = i + 1
 					end
 
-					if profile.keystoneTenPlus > 0 and (profile.keystoneFifteenPlus == 0 or addon:IsModifierKeyDown()) then
+					if profile.keystoneTenPlus > 0 and (profile.keystoneFifteenPlus == 0 or isModKeyDown or isModKeyDownSticky) then
 						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
 						i = i + 1
 					end
@@ -2703,11 +2703,12 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.ChallengesFrame and _G.PVEFrame then
 			local function Show()
-				if not ns.GUILD_BEST_DATA or not addonConfig.showClientGuildBest then return end
-				GuildBestFrame:Show()
+				if not ns.GUILD_BEST_DATA or not ns.GUILD_BEST_FRAME or not addonConfig.showClientGuildBest then return end
+				ns.GUILD_BEST_FRAME:Show()
 			end
 			local function Hide()
-				GuildBestFrame:Hide()
+				if not ns.GUILD_BEST_FRAME then return end
+				ns.GUILD_BEST_FRAME:Hide()
 			end
 			ChallengesFrame:HookScript("OnShow", Show)
 			ChallengesFrame:HookScript("OnHide", Hide)

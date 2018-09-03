@@ -3,6 +3,9 @@ local addonName, ns = ...
 -- constants
 local L = ns.L
 
+-- global frame reference
+ns.GUILD_BEST_FRAME = _G.RaiderIO_GuildBestFrame
+
 -- utility functions
 local GetGuildFullName
 do
@@ -52,7 +55,7 @@ function RaiderIO_GuildBestMixin:SetUp(guildFullName)
 		local frame = self.GuildBests[i]
 
 		if (not frame) then
-			frame = CreateFrame("Frame", nil, RaiderIOGuildBestFrame, "GuildBestRunTemplate")
+			frame = CreateFrame("Frame", nil, ns.GUILD_BEST_FRAME, "RaiderIO_GuildBestRunTemplate")
 
 			frame:SetPoint("TOP", self.GuildBests[i-1], "BOTTOM")
 		end

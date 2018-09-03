@@ -22,8 +22,8 @@ ns.dungeons = {
 		["id"] = 9526,
 		["keystone_instance"] = 249,
 		["instance_map_id"] = 1762,
-		["lfd_activity_ids"] = { 513, 514, 661 },
-		["name"] = "King's Rest",
+		["lfd_activity_ids"] = { 513, 514, 660, 661 },
+		["name"] = "Kings' Rest",
 		["shortName"] = "KR"
 	},
 	[4] = {
@@ -38,7 +38,7 @@ ns.dungeons = {
 		["id"] = 9354,
 		["keystone_instance"] = 353,
 		["instance_map_id"] = 1822,
-		["lfd_activity_ids"] = { 533, 534, 659 },
+		["lfd_activity_ids"] = { 533, 534, 658, 659 },
 		["name"] = "Siege of Boralus",
 		["shortName"] = "SIEGE"
 	},
