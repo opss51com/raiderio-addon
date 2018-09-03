@@ -2698,7 +2698,7 @@ do
 		if _G.ChallengesFrame and _G.PVEFrame then
 			local function Show()
 				if not ns.GUILD_BEST_DATA or not ns.GUILD_BEST_FRAME or not addonConfig.showClientGuildBest then return end
-				ns.GUILD_BEST_FRAME:Show()
+				-- ns.GUILD_BEST_FRAME:Show()
 			end
 			local function Hide()
 				if not ns.GUILD_BEST_FRAME then return end

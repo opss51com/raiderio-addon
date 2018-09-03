@@ -8,9 +8,11 @@ local COLOR_WHITE = { r = 1, g = 1, b = 1 }
 local COLOR_GREY = { r = 0.62, g = 0.62, b = 0.62 }
 local COLOR_GREEN = { r = 0, g = 1, b = 0 }
 
--- fallback frame
-local FALLBACK_FRAME = _G.PVEFrame
-local FALLBACK_FRAME_STRATA = "BACKGROUND"
+-- fallback frames and stratas
+local FALLBACK_ANCHOR = _G.PVEFrame
+local FALLBACK_ANCHOR_STRATA = "LOW"
+local FALLBACK_FRAME = _G.UIParent
+local FALLBACK_FRAME_STRATA = "LOW"
 
 -- profile tooltip
 local ProfileTooltip
@@ -29,7 +31,7 @@ do
 	end)
 end
 
-local IsFallbackShown
+local IsFallbackAnchorShown
 local HookFrame
 local SetAnchor
 local SetUserAnchor
@@ -45,8 +47,8 @@ do
 	end
 
 	local function HookHideTooltip()
-		if IsFallbackShown() then
-			ProfileTooltip.ShowProfile("player", nil, ns.PLAYER_FACTION, FALLBACK_FRAME, FALLBACK_FRAME_STRATA)
+		if IsFallbackAnchorShown() then
+			ProfileTooltip.ShowProfile("player", nil, ns.PLAYER_FACTION, FALLBACK_ANCHOR, FALLBACK_ANCHOR_STRATA)
 		else
 			ProfileTooltip.HideProfile(true)
 		end
@@ -159,8 +161,8 @@ do
 		return query[1], query[2], query[3], query[4], query[5]
 	end
 
-	function IsFallbackShown()
-		return FALLBACK_FRAME:IsShown()
+	function IsFallbackAnchorShown()
+		return FALLBACK_ANCHOR:IsShown()
 	end
 
 	function HookFrame(frame)
@@ -171,19 +173,21 @@ do
 	end
 
 	function SetAnchor(anchorFrame, frameStrata)
-		anchorFrame = IsFrame(anchorFrame) and anchorFrame or FALLBACK_FRAME
+		anchorFrame = IsFrame(anchorFrame) and anchorFrame or FALLBACK_ANCHOR
+		ProfileTooltip:SetParent(anchorFrame or FALLBACK_ANCHOR)
 		ProfileTooltip:SetOwner(anchorFrame, "ANCHOR_NONE")
 		ProfileTooltip:ClearAllPoints()
-		ProfileTooltip:SetPoint("TOPLEFT", anchorFrame, "TOPRIGHT", 0, 0)
-		ProfileTooltip:SetFrameStrata(frameStrata or "MEDIUM")
+		ProfileTooltip:SetPoint("TOPLEFT", anchorFrame or FALLBACK_ANCHOR, "TOPRIGHT", 0, 0)
+		ProfileTooltip:SetFrameStrata(frameStrata or FALLBACK_ANCHOR_STRATA)
 	end
 
 	function SetUserAnchor()
 		local p = ns.addonConfig.profilePoint or {}
-		ProfileTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+		ProfileTooltip:SetParent(FALLBACK_FRAME)
+		ProfileTooltip:SetOwner(FALLBACK_FRAME, "ANCHOR_NONE")
 		ProfileTooltip:ClearAllPoints()
-		ProfileTooltip:SetPoint(p.point or "CENTER", UIParent, p.point or "CENTER", p.x or 0, p.y or 0)
-		ProfileTooltip:SetFrameStrata("MEDIUM")
+		ProfileTooltip:SetPoint(p.point or "CENTER", FALLBACK_FRAME, p.point or "CENTER", p.x or 0, p.y or 0)
+		ProfileTooltip:SetFrameStrata(FALLBACK_FRAME_STRATA)
 	end
 
 	function UpdateProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel)
@@ -201,7 +205,6 @@ do
 	end
 
 	function SetDrag(canDrag)
-		ProfileTooltip:SetParent(canDrag and UIParent or FALLBACK_FRAME)
 		ProfileTooltip:EnableMouse(canDrag)
 		ProfileTooltip:SetMovable(canDrag)
 	end
@@ -212,7 +215,7 @@ function ProfileTooltip.Init()
 	SetDrag(not ns.addonConfig.positionProfileAuto and not ns.addonConfig.lockProfile)
 	-- if auto is enabled reset the point and anchor to the correct frame
 	if ns.addonConfig.positionProfileAuto then
-		SetAnchor(FALLBACK_FRAME, FALLBACK_FRAME_STRATA)
+		SetAnchor(FALLBACK_ANCHOR, FALLBACK_ANCHOR_STRATA)
 	else
 		SetUserAnchor()
 	end
@@ -244,7 +247,7 @@ function ProfileTooltip.ShowProfile(unitOrNameOrNameAndRealm, realmOrNil, factio
 		HookFrame(anchorFrame)
 	end
 	if ns.addonConfig.positionProfileAuto then
-		SetAnchor(anchorFrame, frameStrata)
+		SetAnchor(anchorFrame, frameStrata or (anchorFrame and anchorFrame:GetFrameStrata() or FALLBACK_FRAME_STRATA))
 	else
 		SetUserAnchor()
 	end
@@ -252,9 +255,9 @@ function ProfileTooltip.ShowProfile(unitOrNameOrNameAndRealm, realmOrNil, factio
 end
 
 function ProfileTooltip.HideProfile(useFallback)
-	if useFallback == true and IsFallbackShown() then
+	if useFallback == true and IsFallbackAnchorShown() then
 		if ns.addonConfig.positionProfileAuto then
-			SetAnchor(FALLBACK_FRAME, FALLBACK_FRAME_STRATA)
+			SetAnchor(FALLBACK_ANCHOR, FALLBACK_ANCHOR_STRATA)
 		else
 			SetUserAnchor()
 		end
