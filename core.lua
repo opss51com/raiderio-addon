@@ -1228,9 +1228,6 @@ do
 			-- best dungeon completed (or highest 10/15 achievement)
 			maxDungeon = CONST_DUNGEONS[payload.maxDungeonIndex],
 			maxDungeonLevel = payload.maxDungeonLevel,
-			maxDungeonIndex = payload.maxDungeonIndex,
-			maxDungeonName = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortName or "",
-			maxDungeonNameLocale = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortNameLocale or "",
 			keystoneTenPlus = payload.keystoneTenPlus,
 			keystoneFifteenPlus = payload.keystoneFifteenPlus,
 			totalRuns = payload.totalRuns,
@@ -1258,8 +1255,6 @@ do
 				cache.healScore = 0
 				cache.tankScore = 0
 				cache.maxDungeonLevel = 0
-				cache.maxDungeonName = ""
-				cache.maxDungeonNameLocale = ""
 				cache.keystoneTenPlus = 0
 				cache.keystoneFifteenPlus = 0
 				cache.totalRuns = 0
@@ -1289,19 +1284,16 @@ do
 						cache.dungeonTimes[i] = run.fraction
 
 						if run.level > maxDungeonLevel or (run.level == maxDungeonLevel and run.fraction < maxDungeonTime) then
-							maxDungeonLevel = run.level
-							maxDungeonTime = run.fraction
-							maxDungeonUpgrades = run.upgrades
 							maxDungeonIndex = i
+							maxDungeonTime = run.fraction
+							maxDungeonLevel = run.level
+							maxDungeonUpgrades = run.upgrades
 						end
 					end
 
 					if maxDungeonIndex > 0 then
 						cache.maxDungeon = CONST_DUNGEONS[maxDungeonIndex]
-						cache.maxDungeonIndex = maxDungeonIndex
 						cache.maxDungeonLevel = maxDungeonLevel
-						cache.maxDungeonName = CONST_DUNGEONS[maxDungeonIndex] and CONST_DUNGEONS[maxDungeonIndex].shortName or ""
-						cache.maxDungeonNameLocale = CONST_DUNGEONS[maxDungeonIndex] and CONST_DUNGEONS[maxDungeonIndex].shortNameLocale or ""
 						cache.maxDungeonUpgrades = maxDungeonUpgrades
 					end
 				end
