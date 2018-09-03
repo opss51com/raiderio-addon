@@ -1874,6 +1874,7 @@ do
 		ApplyHooks()
 	end
 
+	-- checks and calculates if the provider is outdated or not, and by how many hours and days
 	local function IsProviderOutdated(provider)
 		local year, month, day, hours, minutes, seconds = provider.date:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+).*Z$")
 		-- parse the ISO timestamp to unix time
@@ -1984,7 +1985,7 @@ do
 		-- store the character we're logged on (used by the client to queue an update, once we log out from the game of course)
 		local name, realm = GetNameAndRealm("player")
 		local realmSlug = GetRealmSlug(realm)
-		_G.RaiderIO_LastCharacter = format("%s-%s-%s", PLAYER_REGION, name, realmSlug)
+		_G.RaiderIO_LastCharacter = format("%s-%s-%s", PLAYER_REGION or "", name or "", realmSlug or "")
 	end
 
 	-- modifier key is toggled, update the tooltip if needed
@@ -2003,6 +2004,7 @@ do
 		end
 	end
 
+	-- if the modifier is down, or if the config option makes it always down, this is the func to call to check the state
 	function addon:IsModifierKeyDown(skipConfig)
 		if skipConfig then
 			return IsModifierKeyDown()
@@ -2710,7 +2712,43 @@ do
 	end
 end
 
--- deprecated warnings
+-- private API
+do
+	ns.addon = addon
+	ns.LFD_ACTIVITYID_TO_DUNGEONID = LFD_ACTIVITYID_TO_DUNGEONID
+	ns.CONST_DUNGEONS = CONST_DUNGEONS
+	ns.IS_DB_OUTDATED = IS_DB_OUTDATED
+	ns.OUTDATED_DAYS = OUTDATED_DAYS
+	ns.OUTDATED_HOURS = OUTDATED_HOURS
+	ns.GetNameAndRealm = GetNameAndRealm
+	ns.CompareDungeon = CompareDungeon
+	ns.GetStarsForUpgrades = GetStarsForUpgrades
+	ns.ProfileOutput = ProfileOutput
+	ns.TooltipProfileOutput = TooltipProfileOutput
+	ns.GetPlayerProfile = GetPlayerProfile
+	ns.HasPlayerProfile = HasPlayerProfile
+	ns.ShowTooltip = ShowTooltip
+end
+
+-- mirror certain data exposed in the public API to avoid external users changing our internal data
+local EXTERNAL_ProfileOutput
+local EXTERNAL_TooltipProfileOutput
+local EXTERNAL_CONST_PROVIDER_INTERFACE
+do
+	local function CloneTable(t)
+		local n = {}
+		for k, v in pairs(t) do
+			n[k] = v
+		end
+		return n
+	end
+
+	EXTERNAL_ProfileOutput = CloneTable(ProfileOutput)
+	EXTERNAL_TooltipProfileOutput = CloneTable(TooltipProfileOutput)
+	EXTERNAL_CONST_PROVIDER_INTERFACE = CloneTable(CONST_PROVIDER_INTERFACE)
+end
+
+-- deprecated warning system with user notification for the first call
 local WrapDeprecatedFunc
 do
 	local notified = {}
@@ -2732,43 +2770,56 @@ do
 	end
 end
 
--- private API
-do
-	ns.addon = addon
-	ns.LFD_ACTIVITYID_TO_DUNGEONID = LFD_ACTIVITYID_TO_DUNGEONID
-	ns.CONST_DUNGEONS = CONST_DUNGEONS
-	ns.IS_DB_OUTDATED = IS_DB_OUTDATED
-	ns.OUTDATED_DAYS = OUTDATED_DAYS
-	ns.OUTDATED_HOURS = OUTDATED_HOURS
-	ns.GetNameAndRealm = GetNameAndRealm
-	ns.CompareDungeon = CompareDungeon
-	ns.GetStarsForUpgrades = GetStarsForUpgrades
-	ns.ProfileOutput = ProfileOutput
-	ns.TooltipProfileOutput = TooltipProfileOutput
-	ns.GetPlayerProfile = GetPlayerProfile
-	ns.HasPlayerProfile = HasPlayerProfile
-	ns.ShowTooltip = ShowTooltip
-end
-
 -- public API
 _G.RaiderIO = {
-	-- Calling GetPlayerProfile returns a table with the data requested for that unit or player by name and realm. Faction is optional and is either 0 = Either, 1 = Alliance, 2 = Horde.
-	-- outputFlag is a bitwise combination of values from the ProfileOutput table, or by calling TooltipProfileOutput functions for complete presets for desired output.
-	-- RaiderIO.GetPlayerProfile(outputFlag, unit)
-	-- RaiderIO.GetPlayerProfile(outputFlag, "Name-Realm"[, 0|1|2])
-	-- RaiderIO.GetPlayerProfile(outputFlag, "Name", "Realm"[, 0|1|2])
-	ProfileOutput = ProfileOutput,
-	TooltipProfileOutput = TooltipProfileOutput,
-	DataProvider = CONST_PROVIDER_INTERFACE,
-	GetPlayerProfile = GetPlayerProfile,
+
+	-- This collection of API is used with GetPlayerProfile to properly output the data you wish to see:
+	--
+	-- ProfileOutput
+	--   A collection of bit fields you can use to combine different types of data you wish to retrieve, or customize the tooltip drawn on the specific GameTooltip widget.
+	-- TooltipProfileOutput
+	--   A collection of functions you can call to dynamically build a combination of bit fields used in ProfileOutput that also respect the modifier key usage and config.
+	-- DataProvider
+	--   A collection of different ID's that are the supported data providers. The profile function if multiple data types are queried will return a group back with dataType properties defined.
+	-- HasPlayerProfile
+	--   A function that can be used to figure out if Raider.IO knows about a specific unit or player, or not. If true it means there is data that can be queried using the profile function.
+	-- GetPlayerProfile
+	--   A function that returns a table with different data types, based on the type of query specified. Use the explanations above to build the query you need.
+	--
+	-- RaiderIO.HasPlayerProfile(unitOrNameOrNameRealm, realmOrNil, factionOrNil) => true | false
+	--   unitOrNameOrNameRealm = "player", "target", "raid1", "Joe" or "Joe-ArgentDawn"
+	--   realmOrNil            = "ArgentDawn" or nil. Can be nil if realm is part of unitOrNameOrNameRealm, or if it's the same realm as the currently logged in character
+	--   factionOrNil          = 1 for Aliance, 2 for Horde, or nil for automatic (looks up both factions, first found is used)
+	--
+	-- RaiderIO.GetPlayerProfile(unitOrNameOrNameRealm, realmOrNil, factionOrNil, ...) => nil | profile, hasData, isCached, hasDataFromMultipleProviders
+	--
+	-- RaiderIO.GetPlayerProfile("target")
+	-- RaiderIO.GetPlayerProfile("Joe")
+	-- RaiderIO.GetPlayerProfile("Joe-ArgentDawn")
+	-- RaiderIO.GetPlayerProfile("Joe", "ArgentDawn")
+	--
+	ProfileOutput = EXTERNAL_ProfileOutput,
+	TooltipProfileOutput = EXTERNAL_TooltipProfileOutput,
+	DataProvider = EXTERNAL_CONST_PROVIDER_INTERFACE,
 	HasPlayerProfile = HasPlayerProfile,
-	-- Calling GetFaction requires a unit and returns you 1 if it's Alliance, 2 if Horde, otherwise nil.
-	-- Calling GetScoreColor requires a Mythic+ score to be passed (a number value) and it returns r, g, b for that score.
-	-- RaiderIO.GetScoreColor(1234)
+	GetPlayerProfile = GetPlayerProfile,
+
+	-- Use this to draw on a specific GameTooltip widget the same way Raider.IO draws its own tooltips.
+	-- ShowTooltip(GameTooltip, outputFlag, ...) => true | false
+	--   Use the same API as used in GetPlayerProfile, with the exception of the first two arguments:
+	--     GameTooltip = the tooltip widget you wish to work with
+	--     outputFlag  = a number generated by one of the functions in TooltipProfileOutput, or a bit.bor you create using ProfileOutput as described above.
+	-- RaiderIO.ShowTooltip(GameTooltip, RaiderIO.TooltipProfileOutput.DEFAULT(), "target")
+	ShowTooltip = ShowTooltip,
+
+	-- Returns a table containing the RGB values for the specified score.
+	-- RaiderIO.GetScoreColor(5000) => { 1, 0.5, 0 }
 	GetScoreColor = GetScoreColor,
-	-- DEPRECATED since BfA season 1
+
+	-- DEPRECATED: use the new API above instead
 	GetScore = WrapDeprecatedFunc("GetScore", "GetPlayerProfile"),
 	GetProfile = WrapDeprecatedFunc("GetProfile", "GetPlayerProfile"),
+
 }
 
 -- PLEASE DO NOT USE (we need it public for the sake of the database modules)
