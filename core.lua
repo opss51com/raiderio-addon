@@ -1180,7 +1180,11 @@ do
 		offset = offset + 11
 
 		-- since we do not store score in addon, we need an explicit value indicating which dungeon was the best run
-		results.maxDungeonIndex = ReadBits(lo, hi, offset, 4)
+		-- note: stored as zero-based, so offset it here on load
+		results.maxDungeonIndex = 1 + ReadBits(lo, hi, offset, 4)
+		if results.maxDungeonIndex > #results.dungeons then
+			results.maxDungeonIndex = 1
+		end
 		results.maxDungeonLevel = results.dungeons[results.maxDungeonIndex]
 		offset = offset + 4
 
