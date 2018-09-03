@@ -515,10 +515,10 @@ do
 		return score
 	end
 
-	-- we only use 8 bits for a run, so decide a cap that we won't show beyond
+	-- we only use 11 bits for how many runs they've completed, so cap it somewhere nice and even
 	function GetFormattedRunCount(count)
-		if count > 250 then
-			return "250+"
+		if count > 2000 then
+			return "2000+"
 		else
 			return count
 		end
@@ -1151,14 +1151,11 @@ do
 		-- Field 2
 		--
 		lo, hi = Split64BitNumber(data2)
-
 		offset = 0
-		results.dpsScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
-		offset = offset + PAYLOAD_BITS
 
 		local dungeonIndex = 1
 		results.dungeons = {}
-		for i = 1, 8 do
+		for i = 1, 10 do
 			results.dungeons[dungeonIndex] = ReadBits(lo, hi, offset, 5)
 			dungeonIndex = dungeonIndex + 1
 			offset = offset + 5
@@ -1168,31 +1165,24 @@ do
 		-- Field 3
 		--
 		lo, hi = Split64BitNumber(data3)
-
 		offset = 0
-		while dungeonIndex <= #ns.dungeons do
-			results.dungeons[dungeonIndex] = ReadBits(lo, hi, offset, 5)
-			dungeonIndex = dungeonIndex + 1
-			offset = offset + 5
-		end
 
-		local maxDungeonLevel = 0
-		local maxDungeonIndex = -1	-- we may not have a max dungeon if user was brought in because of +10/+15 achievement
-		for i = 1, #results.dungeons do
-			if results.dungeons[i] > maxDungeonLevel then
-				maxDungeonLevel = results.dungeons[i]
-				maxDungeonIndex = i
-			end
-		end
+		results.dpsScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
+		offset = offset + PAYLOAD_BITS
 
-		results.maxDungeonLevel = maxDungeonLevel
-		results.maxDungeonIndex = maxDungeonIndex
+		results.totalRuns = ReadBits(lo, hi, offset, 11)
+		offset = offset + 11
 
-		results.keystoneTenPlus = ReadBits(lo, hi, offset, 8)
-		offset = offset + 8
+		results.keystoneTenPlus = ReadBits(lo, hi, offset, 11)
+		offset = offset + 11
 
-		results.keystoneFifteenPlus = ReadBits(lo, hi, offset, 8)
-		offset = offset + 8
+		results.keystoneFifteenPlus = ReadBits(lo, hi, offset, 11)
+		offset = offset + 11
+
+		-- since we do not store score in addon, we need an explicit value indicating which dungeon was the best run
+		results.maxDungeonIndex = ReadBits(lo, hi, offset, 4)
+		results.maxDungeonLevel = results.dungeons[results.maxDungeonIndex]
+		offset = offset + 4
 
 		return results
 	end
@@ -1239,6 +1229,7 @@ do
 			maxDungeonNameLocale = CONST_DUNGEONS[payload.maxDungeonIndex] and CONST_DUNGEONS[payload.maxDungeonIndex].shortNameLocale or "",
 			keystoneTenPlus = payload.keystoneTenPlus,
 			keystoneFifteenPlus = payload.keystoneFifteenPlus,
+			totalRuns = payload.totalRuns,
 		}
 
 		-- client related data populates these fields
@@ -1267,6 +1258,7 @@ do
 				cache.maxDungeonNameLocale = ""
 				cache.keystoneTenPlus = 0
 				cache.keystoneFifteenPlus = 0
+				cache.totalRuns = 0
 				for i = 1, #cache.dungeons do cache.dungeons[i] = 0 end
 			end
 
@@ -1549,6 +1541,11 @@ do
 
 					if profile.keystoneTenPlus > 0 and (profile.keystoneFifteenPlus == 0 or addon:IsModifierKeyDown()) then
 						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
+						i = i + 1
+					end
+
+					if profile.totalRuns > 0 and addon:IsModifierKeyDown() then
+						output[i] = {L.TOTAL_RUNS, GetFormattedRunCount(profile.totalRuns), 1, 1, 1, GetScoreColor(profile.allScore)}
 						i = i + 1
 					end
 				end
