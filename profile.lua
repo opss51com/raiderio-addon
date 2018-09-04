@@ -72,7 +72,7 @@ do
 		if not ns.addonConfig.showRaiderIOProfile and unitOrNameOrNameAndRealm == "player" then
 			return
 		end
-		local output, hasProfile = ns.GetPlayerProfile(bit.bor(ns.ProfileOutput.MYTHICPLUS, ns.ProfileOutput.TOOLTIP), unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, true, lfdActivityID, keystoneLevel)
+		local output, hasProfile = ns.GetPlayerProfile(bit.bor(ns.ProfileOutput.MYTHICPLUS, ns.ProfileOutput.TOOLTIP, ns.ProfileOutput.MOD_KEY_DOWN_STICKY), unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, true, lfdActivityID, keystoneLevel)
 		if not hasProfile then return end
 		local profile = output.profile
 		if not profile then return end
