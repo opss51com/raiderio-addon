@@ -179,8 +179,8 @@ do
 			for i = 1, #config.options do
 				local f = config.options[i]
 				local checked = f.checkButton:GetChecked()
-				local enabled = addonConfig[f.cvar]
-				addonConfig[f.cvar] = not not checked
+				local enabled = ns.addonConfig[f.cvar]
+				ns.addonConfig[f.cvar] = not not checked
 				if ((not enabled and checked) or (enabled and not checked)) then
 					if f.needReload then
 						reload = 1
@@ -214,7 +214,7 @@ do
 			end
 			for i = 1, #self.options do
 				local f = self.options[i]
-				f.checkButton:SetChecked(addonConfig[f.cvar] ~= false)
+				f.checkButton:SetChecked(ns.addonConfig[f.cvar] ~= false)
 			end
 		end
 
