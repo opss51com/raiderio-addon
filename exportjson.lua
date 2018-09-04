@@ -10,21 +10,18 @@ local L = ns.L
 -- export button
 local ExportButton
 do
-	local BUTTON_SIZE = 18
-	local BUTTON_BORDER_SIZE = 2
 	ExportButton = CreateFrame("Button", addonName .. "_ExportButton", LFGListFrame)
-	ExportButton:SetSize(BUTTON_SIZE, BUTTON_SIZE)
-	ExportButton:SetPoint("BOTTOM", ExportButton:GetParent(), "BOTTOM", -BUTTON_SIZE/4, 5)
+	ExportButton:SetPoint("BOTTOMRIGHT", ExportButton:GetParent(), "BOTTOM", 4, 6)
+	ExportButton:SetSize(16, 16)
 	ExportButton.Icon = ExportButton:CreateTexture(nil, "ARTWORK")
 	ExportButton.Icon:SetAllPoints()
-	ExportButton.Icon:SetMask("Interface\\ChatFrame\\UI-ChatIcon-Overwatch")
-	ExportButton.Icon:SetTexture("interface\\icons\\inv_helmet_goggles_pandariatradeskill_d_01")
+	ExportButton.Icon:SetMask("Interface\\Minimap\\UI-Minimap-Background")
+	ExportButton.Icon:SetTexture("Interface\\Minimap\\Tracking\\None")
 	ExportButton.Border = ExportButton:CreateTexture(nil, "BACKGROUND")
-	ExportButton.Border:SetSize(BUTTON_SIZE + BUTTON_BORDER_SIZE, BUTTON_SIZE + BUTTON_BORDER_SIZE)
-	ExportButton.Border:SetPoint("CENTER", -BUTTON_BORDER_SIZE/2, BUTTON_BORDER_SIZE/2)
-	ExportButton.Border:SetMask("Interface\\ChatFrame\\UI-ChatIcon-Overwatch")
-	ExportButton.Border:SetTexture("interface\\buttons\\white8x8")
-	ExportButton.Border:SetVertexColor(0, 0, 0)
+	ExportButton.Border:SetPoint("TOPLEFT", -2, 2)
+	ExportButton.Border:SetSize(36, 36)
+	ExportButton.Border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+	ExportButton.Border:SetVertexColor(.8, .8, .8)
 end
 
 -- copy dialog
@@ -216,6 +213,7 @@ do
 	function UpdateCopyDialog()
 		local canShow = CanShowCopyDialog()
 		ExportButton:SetShown(canShow)
+		if not canShow then ExportButton.CloseCopyDialog() return end
 		local frameName, frame = StaticPopup_Visible(StaticPopupName)
 		if not frame then return end
 		local editBox = _G[frameName .. "WideEditBox"] or _G[frameName .. "EditBox"]
@@ -260,8 +258,8 @@ end
 
 -- button scripts and events
 do
-	ExportButton:SetScript("OnEnter", function() ExportButton.Border:SetVertexColor(.5, .5, .5) end) -- GameTooltip:SetOwner(ExportButton, "ANCHOR_BOTTOMRIGHT") GameTooltip:SetText(L.EXPORTJSON_COPY_BUTTON_TOOLTIP) GameTooltip:Show()
-	ExportButton:SetScript("OnLeave", function() ExportButton.Border:SetVertexColor(0, 0, 0) end)
+	ExportButton:SetScript("OnEnter", function() ExportButton.Border:SetVertexColor(1, 1, 1) end)
+	ExportButton:SetScript("OnLeave", function() ExportButton.Border:SetVertexColor(.8, .8, .8) end)
 	ExportButton:SetScript("OnClick", ExportButton.ToggleCopyDialog)
 	ExportButton:SetScript("OnEvent", UpdateCopyDialog)
 	ExportButton:RegisterEvent("PLAYER_ENTERING_WORLD")

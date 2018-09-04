@@ -113,8 +113,9 @@ L.CHECKBOX_DISPLAY_WEEKLY = "Display Weekly"
 L.NO_GUILD_RECORD = "No Guild Records"
 L.LEGION_SCORE = "Legion Score"
 L.LEGION_MAIN_SCORE = "Legion Main's Score"
-L.API_DEPRECATED = "|cffFF0000Warning!|r The function |cffFFFFFFRaiderIO.%s|r has been deprecated and will be removed in future releases. It's difficult for us to pinpoint what addon called this function, but when it breaks you'll certainly notice."
-L.API_DEPRECATED_WITH = "|cffFF0000Warning!|r The function |cffFFFFFFRaiderIO.%s|r has been deprecated and will be removed in future releases. Please use the new API |cffFFFFFFRaiderIO.%s|r instead. It's difficult for us to pinpoint what addon called this function, but when it breaks you'll certainly notice."
+L.API_DEPRECATED = "|cffFF0000Warning!|r The function |cffFFFFFFRaiderIO.%s|r has been deprecated and will be removed in future releases. The cause for this message appears to be |cffFFFFFF%s|r and it has to be updated by its author."
+L.API_DEPRECATED_WITH = "|cffFF0000Warning!|r The function |cffFFFFFFRaiderIO.%s|r has been deprecated and will be removed in future releases. Please use the new API |cffFFFFFFRaiderIO.%s|r instead. The cause for this message appears to be |cffFFFFFF%s|r and it has to be updated by its author."
+L.API_DEPRECATED_ANONYMOUS_FUNCTION = "<Anonymous function>"
 L.EXPORTJSON_COPY_TEXT = "Copy the following contents and paste it in your browser while being on |cff00C8FFhttps://raider.io|r"
 
 ns.L = L

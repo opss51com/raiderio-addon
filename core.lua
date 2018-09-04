@@ -2148,15 +2148,15 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.ChallengesFrame and _G.PVEFrame then
 			local function Show()
-				if not ns.GUILD_BEST_DATA or not ns.GUILD_BEST_FRAME or not ns.addonConfig.showClientGuildBest then return end
-				-- ns.GUILD_BEST_FRAME:Show()
+				if not ns.GUILD_BEST_DATA or not ns.addonConfig.showClientGuildBest then return end
+				ns.GUILD_BEST_FRAME:Show()
 			end
 			local function Hide()
-				if not ns.GUILD_BEST_FRAME then return end
 				ns.GUILD_BEST_FRAME:Hide()
 			end
 			ChallengesFrame:HookScript("OnShow", Show)
 			ChallengesFrame:HookScript("OnHide", Hide)
+			PVEFrame:HookScript("OnShow", Show)
 			PVEFrame:HookScript("OnHide", Hide)
 			return 1
 		end
@@ -2170,8 +2170,9 @@ do
 	ns.IS_DB_OUTDATED = IS_DB_OUTDATED
 	ns.OUTDATED_DAYS = OUTDATED_DAYS
 	ns.OUTDATED_HOURS = OUTDATED_HOURS
-	ns.GetNameAndRealm = GetNameAndRealm
 	ns.CompareDungeon = CompareDungeon
+	ns.GetDungeonWithData = GetDungeonWithData
+	ns.GetNameAndRealm = GetNameAndRealm
 	ns.GetStarsForUpgrades = GetStarsForUpgrades
 	ns.ProfileOutput = ProfileOutput
 	ns.TooltipProfileOutput = TooltipProfileOutput
@@ -2203,15 +2204,30 @@ local WrapDeprecatedFunc
 do
 	local notified = {}
 
-	local function Notify(funcName, newFuncName)
-		if notified[funcName] then return end
-		notified[funcName] = true
-		DEFAULT_CHAT_FRAME:AddMessage(format(L[newFuncName and "API_DEPRECATED_WITH" or "API_DEPRECATED"], funcName, newFuncName), 1, 1, 0)
+	-- case insensitive pattern returns the probably path to addon and file, along with the line of the caused error
+	local function GetAddOnNameAndFile(raw)
+		if type(raw) ~= "string" then return end
+		return (raw:match("^\s*[Ii][Nn][Tt][Ee][Rr][Ff][Aa][Cc][Ee][\\/]+[Aa][Dd][Dd][Oo][Nn][Ss][\\/]+(.-\:%d+)\:"))
 	end
 
+	-- attempts to extract the error from the first six error lines (first one always blames this function so we ignore it)
+	local function GetCallingAddOnName(stack)
+		local _, c1, c2, c3, c4, c5, c6 = ("[\r\n]+"):split(stack)
+		c1, c2, c3, c4, c5, c6 = GetAddOnNameAndFile(c1), GetAddOnNameAndFile(c2), GetAddOnNameAndFile(c3), GetAddOnNameAndFile(c4), GetAddOnNameAndFile(c5), GetAddOnNameAndFile(c6)
+		return c1 or c2 or c3 or c4 or c5 or c6 or L.API_DEPRECATED_ANONYMOUS_FUNCTION
+	end
+
+	-- writes a notification about the particular API call but only once per session
+	local function Notify(funcName, newFuncName, stack)
+		if notified[funcName] then return end
+		notified[funcName] = true
+		DEFAULT_CHAT_FRAME:AddMessage(format(L[newFuncName and "API_DEPRECATED_WITH" or "API_DEPRECATED"], funcName, newFuncName, GetCallingAddOnName(stack)), 1, 1, 0)
+	end
+
+	-- wraps the deprecated function and calls the new API with the appropriate arguments
 	function WrapDeprecatedFunc(funcName, newFuncName)
 		return function(...)
-			Notify(funcName, newFuncName)
+			Notify(funcName, newFuncName, debugstack())
 			local d = GetPlayerProfile(ProfileOutput.DATA, ...)
 			if d then d = d[CONST_PROVIDER_DATA_MYTHICPLUS] end
 			if d then d = d.profile end
