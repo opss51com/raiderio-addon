@@ -1,7 +1,10 @@
 local addonName, ns = ...
 
 -- widget references
-local WR, WN, TT, UI
+local Frame
+local RealmEditBox
+local NameEditBox
+local Tooltip
 
 -- sort realms or names
 local function SortReturn(a, b)
@@ -20,20 +23,22 @@ local function GetRealms(text, maxResults, cursorPosition)
 		if count >= maxResults then
 			break
 		end
-		data = ns.dataProvider["db" .. i]
-		if data then
-			for k, _ in pairs(data) do
-				if count >= maxResults then
-					break
-				end
-				kl = k:lower()
-				if not unique[kl] and kl:find(text, nil, true) == 1 then
-					unique[kl] = true
-					count = count + 1
-					temp[count] = {
-						name = k,
-						priority = 7,
-					}
+		for _, dataProviderGroup in pairs(ns.dataProvider) do
+			data = dataProviderGroup["db" .. i]
+			if data then
+				for k, _ in pairs(data) do
+					if count >= maxResults then
+						break
+					end
+					kl = k:lower()
+					if not unique[kl] and kl:find(text, nil, true) == 1 then
+						unique[kl] = true
+						count = count + 1
+						temp[count] = {
+							name = k,
+							priority = 7,
+						}
+					end
 				end
 			end
 		end
@@ -46,7 +51,7 @@ end
 -- searches for character names
 local function GetNames(text, maxResults, cursorPosition)
 	text = text:lower()
-	local realm = WR:GetText()
+	local realm = RealmEditBox:GetText()
 	if not realm or strlenutf8(realm) < 1 then return end
 	local temp = {}
 	local rcount = 0
@@ -58,23 +63,25 @@ local function GetNames(text, maxResults, cursorPosition)
 		if rcount >= maxResults then
 			break
 		end
-		data = ns.dataProvider["db" .. i]
-		if data then
-			data = data[realm]
+		for _, dataProviderGroup in pairs(ns.dataProvider) do
+			data = dataProviderGroup["db" .. i]
 			if data then
-				count = #data
-				for j = 2, count do
-					if rcount >= maxResults then
-						break
-					end
-					name = data[j]
-					namel = name:lower()
-					if namel:find(text, nil, true) == 1 then
-						rcount = rcount + 1
-						temp[rcount] = {
-							name = name,
-							priority = 7,
-						}
+				data = data[realm]
+				if data then
+					count = #data
+					for j = 2, count do
+						if rcount >= maxResults then
+							break
+						end
+						name = data[j]
+						namel = name:lower()
+						if namel:find(text, nil, true) == 1 then
+							rcount = rcount + 1
+							temp[rcount] = {
+								name = name,
+								priority = 7,
+							}
+						end
 					end
 				end
 			end
@@ -131,21 +138,21 @@ end
 
 -- create own tooltip widget
 local function CreateTooltip()
-	local f = CreateFrame("GameTooltip", addonName .. "DebugTooltip", UIParent, "GameTooltipTemplate")
+	local f = CreateFrame("GameTooltip", addonName .. "SearchTooltip", UIParent, "GameTooltipTemplate")
 	return f
 end
 
 -- update the tooltip
 local function UpdateTooltip(realm, name)
 	if realm and name and strlenutf8(realm) > 0 and strlenutf8(name) > 0 then
-		TT:SetParent(UI)
-		TT:SetOwner(UI, "ANCHOR_BOTTOM", 0, -8)
-		if not ns.AppendGameTooltip(TT, name .. "-" .. realm, true, true) then
-			TT:AddLine(ERR_FRIEND_NOT_FOUND, 1, 1, 1, false)
+		Tooltip:SetParent(Frame)
+		Tooltip:SetOwner(Frame, "ANCHOR_BOTTOM", 0, -8)
+		if not ns.ShowTooltip(Tooltip, bit.bor(ns.ProfileOutput.DEFAULT, ns.ProfileOutput.MOD_KEY_DOWN_STICKY, ns.ProfileOutput.ADD_NAME), name, realm) then
+			Tooltip:AddLine(ERR_FRIEND_NOT_FOUND, 1, 1, 1, false)
 		end
-		TT:Show()
+		Tooltip:Show()
 	else
-		TT:Hide()
+		Tooltip:Hide()
 	end
 end
 
@@ -158,16 +165,16 @@ local function Search(self, query)
 	if arg2q and arg2q[1] and arg2q[1].name then
 		arg2 = arg2q[1].name
 	end
-	WR:SetText(arg2)
+	RealmEditBox:SetText(arg2)
 	local arg1q = GetNames(arg1, 1)
 	if arg1q and arg1q[1] and arg1q[1].name then
 		arg1 = arg1q[1].name
 	end
-	WN:SetText(arg1)
+	NameEditBox:SetText(arg1)
 	UpdateTooltip(arg2, arg1)
 end
 
--- creates the debug widget
+-- creates the search widget
 local function Init()
 	local r = CreateEditBox()
 	local n = CreateEditBox()
@@ -176,42 +183,42 @@ local function Init()
 	r.autoCompleteFunction = GetRealms
 	n.autoCompleteFunction = GetNames
 
-	UI = CreateFrame("Frame", nil, UIParent)
+	Frame = CreateFrame("Frame", nil, UIParent)
 	do
-		UI:Hide()
-		UI:EnableMouse(true)
-		UI:SetFrameStrata("DIALOG")
-		UI:SetToplevel(true)
+		Frame:Hide()
+		Frame:EnableMouse(true)
+		Frame:SetFrameStrata("DIALOG")
+		Frame:SetToplevel(true)
 
-		UI:SetSize(310, 100)
-		UI:SetPoint("CENTER")
+		Frame:SetSize(310, 100)
+		Frame:SetPoint("CENTER")
 
-		UI:SetBackdrop({
+		Frame:SetBackdrop({
 			bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
 			edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
 			tile = true, tileSize = 16, edgeSize = 16,
 			insets = { left = 4, right = 4, top = 4, bottom = 4 }
 		})
-		UI:SetBackdropColor(0, 0, 0, 1)
+		Frame:SetBackdropColor(0, 0, 0, 1)
 
-		UI.header = UI:CreateFontString(nil, nil, "ChatFontNormal")
-		UI.header:SetPoint("TOPLEFT", 16, -12)
-		UI.header:SetText("Enter realm and character name:")
+		Frame.header = Frame:CreateFontString(nil, nil, "ChatFontNormal")
+		Frame.header:SetPoint("TOPLEFT", 16, -12)
+		Frame.header:SetText("Enter realm and character name:")
 
-		UI:SetMovable(true)
-		UI:RegisterForDrag("LeftButton")
-		UI:SetClampedToScreen(true)
-		UI:SetScript("OnDragStart", function() UI:StartMoving() end)
-		UI:SetScript("OnDragStop", function() UI:StopMovingOrSizing() end)
+		Frame:SetMovable(true)
+		Frame:RegisterForDrag("LeftButton")
+		Frame:SetClampedToScreen(true)
+		Frame:SetScript("OnDragStart", function() Frame:StartMoving() end)
+		Frame:SetScript("OnDragStop", function() Frame:StopMovingOrSizing() end)
 
-		UI:SetScript("OnShow", function() UpdateTooltip(r:GetText(), n:GetText()) end)
-		UI:SetScript("OnHide", function() UpdateTooltip() end)
+		Frame:SetScript("OnShow", function() UpdateTooltip(r:GetText(), n:GetText()) end)
+		Frame:SetScript("OnHide", function() UpdateTooltip() end)
 
-		UI.Search = Search
+		Frame.Search = Search
 	end
 
-	r:SetParent(UI)
-	n:SetParent(UI)
+	r:SetParent(Frame)
+	n:SetParent(Frame)
 
 	r:SetPoint("CENTER")
 	n:SetPoint("TOP", r, "BOTTOM", 0, 11)
@@ -275,11 +282,13 @@ local function Init()
 	n:HookScript("OnTextChanged", OnTextChanged)
 
 	-- references
-	WR, WN, TT = r, n, t
+	RealmEditBox = r
+	NameEditBox = n
+	Tooltip = t
 
-	-- this is required for "/raiderio debug" to be able to toggle the dialog
-	ns.DEBUG_UI = UI
+	-- this is required for "/raiderio search" to be able to toggle the dialog
+	ns.SEARCH_UI = Frame
 end
 
 -- init from the slash handler in core.lua
-ns.DEBUG_INIT = Init
+ns.SEARCH_INIT = Init
