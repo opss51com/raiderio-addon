@@ -1485,6 +1485,8 @@ do
 						best.level = profile.dungeons[best.dungeon.index]
 					end
 
+					-- Jah: Disabled for now, as everyone who did a +15 in Legion will have one in BFA since we are sharing achievements
+					--[[
 					if profile.keystoneFifteenPlus > 0 then
 						if profile.maxDungeonLevel < 15 then
 							best.text = L.KEYSTONE_COMPLETED_15
@@ -1494,6 +1496,7 @@ do
 							best.text = L.KEYSTONE_COMPLETED_10
 						end
 					end
+					--]]
 
 					if best.dungeon and best.dungeon == profile.maxDungeon then
 						output[i] = {L.BEST_RUN, "+" .. best.level .. " " .. best.dungeon.shortNameLocale, 0, 1, 0, GetScoreColor(profile.allScore)}
