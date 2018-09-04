@@ -138,7 +138,7 @@ end
 
 -- create own tooltip widget
 local function CreateTooltip()
-	local f = CreateFrame("GameTooltip", addonName .. "SearchTooltip", UIParent, "GameTooltipTemplate")
+	local f = CreateFrame("GameTooltip", addonName .. "_SearchTooltip", UIParent, "GameTooltipTemplate")
 	return f
 end
 
@@ -290,5 +290,5 @@ local function Init()
 	ns.SEARCH_UI = Frame
 end
 
--- init from the slash handler in core.lua
+-- namespace references
 ns.SEARCH_INIT = Init

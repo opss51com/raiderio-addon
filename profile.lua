@@ -17,7 +17,7 @@ local FALLBACK_FRAME_STRATA = "LOW"
 -- profile tooltip
 local ProfileTooltip
 do
-	ProfileTooltip = CreateFrame("GameTooltip", addonName .. "ProfileTooltip", FALLBACK_FRAME, "GameTooltipTemplate")
+	ProfileTooltip = CreateFrame("GameTooltip", addonName .. "_ProfileTooltip", FALLBACK_FRAME, "GameTooltipTemplate")
 	ProfileTooltip:SetClampedToScreen(true)
 	ProfileTooltip:RegisterForDrag("LeftButton")
 	ProfileTooltip:SetScript("OnDragStart", ProfileTooltip.StartMoving)
@@ -225,7 +225,7 @@ function ProfileTooltip.SaveConfig()
 	-- same procedure as logging in by adjusting drag state and anchor based on preferences
 	ProfileTooltip.Init()
 	-- update the tooltip visuals in case the profile is visible
-	UpdateProfile(true)
+	ProfileTooltip.UpdateTooltip()
 end
 
 function ProfileTooltip.ToggleLock()
@@ -273,4 +273,5 @@ function ProfileTooltip.UpdateTooltip()
 	end
 end
 
+-- namespace references
 ns.PROFILE_UI = ProfileTooltip
