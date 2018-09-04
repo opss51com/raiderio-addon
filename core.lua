@@ -1244,23 +1244,6 @@ do
 			cache.dungeonTimes = {}
 			cache.maxDungeonUpgrades = 0
 
-			-- purge pre-bfa data until bfa season starts (but keep it if we're debugging so we can play with the UI)
-			if not ns.DEBUG_MODE then
-				cache.legionScore = RoundNumber(cache.allScore, 10)
-				cache.legionMainScore = RoundNumber(cache.mainScore, 10)
-				cache.allScore = 0
-				cache.isPrevAllScore = false
-				cache.mainScore = 0
-				cache.dpsScore = 0
-				cache.healScore = 0
-				cache.tankScore = 0
-				cache.maxDungeonLevel = 0
-				cache.keystoneTenPlus = 0
-				cache.keystoneFifteenPlus = 0
-				cache.totalRuns = 0
-				for i = 1, #cache.dungeons do cache.dungeons[i] = 0 end
-			end
-
 			-- if character exists in the clientCharacters list then override some data with higher precision
 			-- TODO: only do this if the clientCharacters data isn't too old compared to regular addon date?
 			if ns.CLIENT_CHARACTERS and addonConfig.enableClientEnhancements then
@@ -1416,14 +1399,7 @@ do
 			end
 
 			if dataType == CONST_PROVIDER_DATA_MYTHICPLUS then
-
-				if profile.legionScore and profile.legionScore > 0 and (not profile.legionMainScore or profile.legionMainScore <= profile.legionScore) then
-					output[i] = {L.LEGION_SCORE, GetFormattedScore(profile.legionScore), 1, 1, 1, 1, 1, 1}
-					i = i + 1
-				elseif profile.legionMainScore and (not profile.legionScore or profile.legionMainScore > profile.legionScore) then
-					output[i] = {L.LEGION_MAIN_SCORE, GetFormattedScore(profile.legionMainScore), 1, 1, 1, 1, 1, 1}
-					i = i + 1
-				elseif profile.allScore >= 0 then
+				if profile.allScore >= 0 then
 					output[i] = {L.RAIDERIO_MP_SCORE, GetFormattedScore(profile.allScore, profile.isPrevAllScore), 1, 0.85, 0, GetScoreColor(profile.allScore)}
 					i = i + 1
 				else
