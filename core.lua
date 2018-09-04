@@ -1922,7 +1922,7 @@ do
 				_G[self:GetName() .. "Highlight"]:Hide()
 				CustomOnLeave(self:GetParent())
 			end
-			custom = CreateFrame("Button", addonName .. "CustomDropDownList", UIParent, "UIDropDownListTemplate")
+			custom = CreateFrame("Button", addonName .. "_CustomDropDownList", UIParent, "UIDropDownListTemplate")
 			custom:Hide()
 			-- attempt to reskin using popular frameworks
 			-- skinType = nil : not skinned

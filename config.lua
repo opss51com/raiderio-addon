@@ -73,7 +73,7 @@ do
 			OnCancel = nil
 		}
 
-		local configParentFrame = CreateFrame("Frame", addonName .. "ConfigParentFrame", UIParent)
+		local configParentFrame = CreateFrame("Frame", nil, UIParent)
 		configParentFrame:SetSize(400, 600)
 		configParentFrame:SetPoint("CENTER")
 
@@ -118,7 +118,7 @@ do
 
 		configParentFrame.scrollbar = configSliderFrame
 
-		local configFrame = CreateFrame("Frame", addonName .. "ConfigFrame", configScrollFrame)
+		local configFrame = CreateFrame("Frame", nil, configScrollFrame)
 		configFrame:SetSize(400, 600) -- resized to proper value below
 		configScrollFrame.content = configFrame
 		configScrollFrame:SetScrollChild(configFrame)
@@ -488,7 +488,7 @@ do
 				end
 			end
 
-			local panel = CreateFrame("Frame", configFrame:GetName() .. "Panel", InterfaceOptionsFramePanelContainer)
+			local panel = CreateFrame("Frame", nil, InterfaceOptionsFramePanelContainer)
 			panel.name = addonName
 			panel:Hide()
 
