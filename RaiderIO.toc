@@ -33,3 +33,4 @@ search.lua
 client.lua
 guildbest.lua
 guildbest.xml
+exportjson.lua
