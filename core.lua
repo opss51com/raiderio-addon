@@ -894,7 +894,7 @@ do
 						end
 					end
 
-					if not best.dungeon then
+					if not best.dungeon and addLFD then
 						local numSigned, status = GetLFDStatus()
 						if numSigned then
 							if numSigned == true then
@@ -1035,6 +1035,10 @@ do
 		-- lookup name, realm and potentially unit identifier
 		local name, realm, unit = GetNameAndRealm(queryName, queryRealm)
 		if name and realm then
+			-- global flag to avoid caching LFD/instance flagged tooltips everywhere
+			if not ns.enableTooltipCaching and band(outputFlag, ProfileOutput.ADD_LFD) ~= ProfileOutput.ADD_LFD then
+				outputFlag = bor(outputFlag, ProfileOutput.ADD_LFD)
+			end
 			-- what modules are we looking into?
 			local reqMythicPlus = band(outputFlag, ProfileOutput.MYTHICPLUS) == ProfileOutput.MYTHICPLUS
 			local reqRaiding = band(outputFlag, ProfileOutput.RAIDING) == ProfileOutput.RAIDING
@@ -1259,6 +1263,7 @@ do
 				UpdateTooltip(tooltipCache)
 			end
 		end
+		ns.PROFILE_UI.UpdateTooltip()
 	end
 end
 
@@ -1281,6 +1286,22 @@ do
 		-- the addon savedvariables are loaded and we can initialize the addon
 		if name == addonName then
 			ns.CONFIG.Init()
+
+			-- purge cache after zoning
+			ns.addon:RegisterEvent("PLAYER_ENTERING_WORLD")
+
+			-- detect toggling of the modifier keys (additional events to try self-correct if we locked the mod key by using ALT-TAB)
+			ns.addon:RegisterEvent("MODIFIER_STATE_CHANGED")
+
+			-- update our state when we enter new places or our LFD activity changes
+			ns.addon.LFG_LIST_ACTIVE_ENTRY_UPDATE = addon.CheckLfdAndCurrentInstanceState
+			ns.addon.GROUP_ROSTER_UPDATE = addon.CheckLfdAndCurrentInstanceState
+			ns.addon.ZONE_CHANGED = addon.CheckLfdAndCurrentInstanceState
+			ns.addon.ZONE_CHANGED_NEW_AREA = addon.CheckLfdAndCurrentInstanceState
+			ns.addon:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
+			ns.addon:RegisterEvent("GROUP_ROSTER_UPDATE")
+			ns.addon:RegisterEvent("ZONE_CHANGED")
+			ns.addon:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 		end
 
 		-- apply hooks to interface elements
@@ -1402,6 +1423,8 @@ do
 		local name, realm = GetNameAndRealm("player")
 		local realmSlug = GetRealmSlug(realm)
 		_G.RaiderIO_LastCharacter = format("%s-%s-%s", PLAYER_REGION or "", name or "", realmSlug or "")
+		-- force an update when we enter the world
+		addon:CheckLfdAndCurrentInstanceState()
 	end
 
 	-- modifier key is toggled, update the tooltip if needed
@@ -1416,7 +1439,6 @@ do
 		addon.modKey = m
 		if m ~= l and skipUpdatingTooltip ~= true then
 			UpdateTooltips()
-			ns.PROFILE_UI.UpdateTooltip()
 		end
 	end
 
@@ -1426,6 +1448,19 @@ do
 			return IsModifierKeyDown()
 		end
 		return ns.addonConfig.alwaysExtendTooltip or IsModifierKeyDown()
+	end
+
+	-- we relocate and need to check our current state and if we wanna cache tooltips or not
+	function addon:CheckLfdAndCurrentInstanceState()
+		local numSigned = GetLFDStatus()
+		if numSigned == true then
+			ns.enableTooltipCaching = false
+		elseif numSigned and numSigned > 0 then
+			ns.enableTooltipCaching = false
+		else
+			ns.enableTooltipCaching = not GetInstanceStatus()
+		end
+		UpdateTooltips()
 	end
 end
 

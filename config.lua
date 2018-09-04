@@ -559,12 +559,6 @@ do
 
 		-- create the config frame
 		InitConfig()
-
-		-- purge cache after zoning
-		ns.addon:RegisterEvent("PLAYER_ENTERING_WORLD")
-
-		-- detect toggling of the modifier keys (additional events to try self-correct if we locked the mod key by using ALT-TAB)
-		ns.addon:RegisterEvent("MODIFIER_STATE_CHANGED")
 	end
 end
 
