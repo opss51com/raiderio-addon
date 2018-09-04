@@ -19,48 +19,10 @@ local PAYLOAD_BITS = 13
 local PAYLOAD_MASK = lshift(1, PAYLOAD_BITS) - 1
 local LOOKUP_MAX_SIZE = floor(2^18-1)
 
--- default config
-local addonConfig
-do
-	addonConfig = {
-		enableUnitTooltips = true,
-		enableLFGTooltips = true,
-		enableFriendsTooltips = true,
-		enableLFGDropdown = true,
-		enableWhoTooltips = true,
-		enableWhoMessages = true,
-		enableGuildTooltips = true,
-		enableKeystoneTooltips = true,
-		showMainsScore = true,
-		showDropDownCopyURL = true,
-		showSimpleScoreColors = false,
-		showScoreInCombat = true,
-		disableScoreColors = false,
-		alwaysExtendTooltip = false,
-		enableClientEnhancements = true,
-		showClientGuildBest = true,
-		displayWeeklyGuildBest = false,
-		showRaiderIOProfile = true,
-		enableProfileModifier = true,
-		inverseProfileModifier = false,
-		positionProfileAuto = true,
-		lockProfile = false,
-		profilePoint = { point = nil, x = 0, y = 0 },
-	}
-
-	ns.addonConfig = addonConfig
-end
-
 -- session
 local uiHooks = {}
 local profileCache = {}
 local profileCacheTooltip = {}
-local configParentFrame
-local configButtonFrame
-local configHeaderFrame
-local configScrollFrame
-local configSliderFrame
-local configFrame
 local dataProviderQueue = {}
 local dataProvider
 
@@ -253,6 +215,9 @@ local EGG = {
 
 -- create the addon core frame
 local addon = CreateFrame("Frame")
+
+-- namespace addon frame reference
+ns.addon = addon
 
 -- dynamic tooltip flags for specific uses (replaces the flags with functions that when called also combines the modifier logic)
 do
@@ -525,537 +490,6 @@ do
 	end
 end
 
--- addon functions
-local Init
-local InitConfig
-do
-	-- update local reference to the correct savedvariable table
-	local function UpdateGlobalConfigVar()
-		if type(_G.RaiderIO_Config) ~= "table" then
-			_G.RaiderIO_Config = addonConfig
-		else
-			local defaults = addonConfig
-			addonConfig = setmetatable(_G.RaiderIO_Config, {
-				__index = function(_, key)
-					return defaults[key]
-				end
-			})
-			-- update the namespace reference
-			ns.addonConfig = addonConfig
-		end
-	end
-
-	-- addon config is loaded so we update the local reference and register for future events
-	function Init()
-		-- update local reference to the correct savedvariable table
-		UpdateGlobalConfigVar()
-
-		-- wait for the login event, or run the associated code right away
-		if not IsLoggedIn() then
-			addon:RegisterEvent("PLAYER_LOGIN")
-		else
-			addon:PLAYER_LOGIN()
-		end
-
-		-- create the config frame
-		InitConfig()
-
-		-- purge cache after zoning
-		addon:RegisterEvent("PLAYER_ENTERING_WORLD")
-
-		-- detect toggling of the modifier keys (additional events to try self-correct if we locked the mod key by using ALT-TAB)
-		addon:RegisterEvent("MODIFIER_STATE_CHANGED")
-	end
-
-	-- addon config is loaded so we can build the config frame
-	function InitConfig()
-		_G.StaticPopupDialogs["RAIDERIO_RELOADUI_CONFIRM"] = {
-			text = L.CHANGES_REQUIRES_UI_RELOAD,
-			button1 = L.RELOAD_NOW,
-			button2 = L.RELOAD_LATER,
-			hasEditBox = false,
-			preferredIndex = 3,
-			timeout = 0,
-			whileDead = true,
-			hideOnEscape = true,
-			OnShow = nil,
-			OnHide = nil,
-			OnAccept = ReloadUI,
-			OnCancel = nil
-		}
-
-		configParentFrame = CreateFrame("Frame", addonName .. "ConfigParentFrame", UIParent)
-		configParentFrame:SetSize(400, 600)
-		configParentFrame:SetPoint("CENTER")
-
-		configHeaderFrame = CreateFrame("Frame", nil, configParentFrame)
-		configHeaderFrame:SetPoint("TOPLEFT", 00, -30)
-		configHeaderFrame:SetPoint("TOPRIGHT", 00, 30)
-		configHeaderFrame:SetHeight(40)
-
-		configScrollFrame = CreateFrame("ScrollFrame", nil, configParentFrame)
-		configScrollFrame:SetPoint("TOPLEFT", configHeaderFrame, "BOTTOMLEFT")
-		configScrollFrame:SetPoint("TOPRIGHT", configHeaderFrame, "BOTTOMRIGHT")
-		configScrollFrame:SetHeight(475)
-		configScrollFrame:EnableMouseWheel(true)
-		configScrollFrame:SetClampedToScreen(true);
-		configScrollFrame:SetClipsChildren(true);
-		configScrollFrame:HookScript("OnMouseWheel", function(self, delta)
-			local currentValue = configSliderFrame:GetValue()
-			local changes = -delta * 20
-			configSliderFrame:SetValue(currentValue + changes)
-		end)
-
-		configButtonFrame = CreateFrame("Frame", nil, configParentFrame)
-		configButtonFrame:SetPoint("TOPLEFT", configScrollFrame, "BOTTOMLEFT", 0, -10)
-		configButtonFrame:SetPoint("TOPRIGHT", configScrollFrame, "BOTTOMRIGHT")
-		configButtonFrame:SetHeight(50)
-
-		configParentFrame.scrollframe = configScrollFrame
-
-		configSliderFrame = CreateFrame("Slider", nil, configScrollFrame, "UIPanelScrollBarTemplate")
-		configSliderFrame:SetPoint("TOPLEFT", configScrollFrame, "TOPRIGHT", -35, -18)
-		configSliderFrame:SetPoint("BOTTOMLEFT", configScrollFrame, "BOTTOMRIGHT", -35, 18)
-		configSliderFrame:SetMinMaxValues(1, 1)
-		configSliderFrame:SetValueStep(1)
-		configSliderFrame.scrollStep = 1
-		configSliderFrame:SetValue(0)
-		configSliderFrame:SetWidth(16)
-		configSliderFrame:SetScript("OnValueChanged",
-			function (self, value)
-				self:GetParent():SetVerticalScroll(value)
-			end)
-
-		configParentFrame.scrollbar = configSliderFrame
-
-		configFrame = CreateFrame("Frame", addonName .. "ConfigFrame", configScrollFrame)
-		configFrame:SetSize(400, 600) -- resized to proper value below
-		configScrollFrame.content = configFrame
-		configScrollFrame:SetScrollChild(configFrame)
-		configParentFrame:Hide()
-
-		local config
-
-		local function WidgetHelp_OnEnter(self)
-			if self.tooltip then
-				GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT", 0, 0)
-				GameTooltip:AddLine(self.tooltip, 1, 1, 1, true)
-				GameTooltip:Show()
-			end
-		end
-
-		local function WidgetButton_OnEnter(self)
-			self:SetBackdropColor(0.3, 0.3, 0.3, 1)
-			self:SetBackdropBorderColor(1, 1, 1, 1)
-		end
-
-		local function WidgetButton_OnLeave(self)
-			self:SetBackdropColor(0, 0, 0, 1)
-			self:SetBackdropBorderColor(1, 1, 1, 0.3)
-		end
-
-		local function Close_OnClick()
-			configParentFrame:SetShown(not configParentFrame:IsShown())
-		end
-
-		local function Save_OnClick()
-			Close_OnClick()
-			local reload
-			for i = 1, #config.modules do
-				local f = config.modules[i]
-				local checked1 = f.checkButton:GetChecked()
-				local checked2 = f.checkButton2:GetChecked()
-				local loaded1 = IsAddOnLoaded(f.addon1)
-				local loaded2 = IsAddOnLoaded(f.addon2)
-				if checked1 then
-					if not loaded1 then
-						reload = 1
-						EnableAddOn(f.addon1)
-					end
-				elseif loaded1 then
-					reload = 1
-					DisableAddOn(f.addon1)
-				end
-				if checked2 then
-					if not loaded2 then
-						reload = 1
-						EnableAddOn(f.addon2)
-					end
-				elseif loaded2 then
-					reload = 1
-					DisableAddOn(f.addon2)
-				end
-			end
-			for i = 1, #config.options do
-				local f = config.options[i]
-				local checked = f.checkButton:GetChecked()
-				local enabled = addonConfig[f.cvar]
-				addonConfig[f.cvar] = not not checked
-				if ((not enabled and checked) or (enabled and not checked)) then
-					if f.needReload then
-						reload = 1
-					end
-					if f.callback then
-						f.callback()
-					end
-				end
-			end
-			if reload then
-				StaticPopup_Show("RAIDERIO_RELOADUI_CONFIRM")
-			end
-			ns.PROFILE_UI.SaveConfig()
-		end
-
-		config = {
-			modules = {},
-			options = {},
-			backdrop = {
-				bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-				edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 16,
-				insets = { left = 4, right = 4, top = 4, bottom = 4 }
-			}
-		}
-
-		function config.Update(self)
-			for i = 1, #self.modules do
-				local f = self.modules[i]
-				f.checkButton:SetChecked(IsAddOnLoaded(f.addon1))
-				f.checkButton2:SetChecked(IsAddOnLoaded(f.addon2))
-			end
-			for i = 1, #self.options do
-				local f = self.options[i]
-				f.checkButton:SetChecked(addonConfig[f.cvar] ~= false)
-			end
-		end
-
-		function config.CreateWidget(self, widgetType, height, parentFrame)
-			local widget = CreateFrame(widgetType, nil, parentFrame or configFrame)
-
-			if self.lastWidget then
-				widget:SetPoint("TOPLEFT", self.lastWidget, "BOTTOMLEFT", 0, -24)
-				widget:SetPoint("BOTTOMRIGHT", self.lastWidget, "BOTTOMRIGHT", 0, -4)
-			else
-				widget:SetPoint("TOPLEFT", parentFrame or configFrame, "TOPLEFT", 16, 0)
-				widget:SetPoint("BOTTOMRIGHT", parentFrame or configFrame, "TOPRIGHT", -40, -16)
-			end
-
-			widget.bg = widget:CreateTexture()
-			widget.bg:SetAllPoints()
-			widget.bg:SetColorTexture(0, 0, 0, 0.5)
-
-			widget.text = widget:CreateFontString(nil, nil, "GameFontNormal")
-			widget.text:SetPoint("LEFT", 8, 0)
-			widget.text:SetPoint("RIGHT", -8, 0)
-			widget.text:SetJustifyH("LEFT")
-
-			widget.checkButton = CreateFrame("CheckButton", "$parentCheckButton1", widget, "UICheckButtonTemplate")
-			widget.checkButton:Hide()
-			widget.checkButton:SetPoint("RIGHT", -4, 0)
-			widget.checkButton:SetScale(0.7)
-
-			widget.checkButton2 = CreateFrame("CheckButton", "$parentCheckButton2", widget, "UICheckButtonTemplate")
-			widget.checkButton2:Hide()
-			widget.checkButton2:SetPoint("RIGHT", widget.checkButton, "LEFT", -4, 0)
-			widget.checkButton2:SetScale(0.7)
-
-			widget.help = CreateFrame("Frame", nil, widget)
-			widget.help:Hide()
-			widget.help:SetPoint("LEFT", widget.checkButton, "LEFT", -20, 0)
-			widget.help:SetSize(16, 16)
-			widget.help:SetScale(0.9)
-			widget.help.icon = widget.help:CreateTexture()
-			widget.help.icon:SetAllPoints()
-			widget.help.icon:SetTexture("Interface\\GossipFrame\\DailyActiveQuestIcon")
-
-			widget.help:SetScript("OnEnter", WidgetHelp_OnEnter)
-			widget.help:SetScript("OnLeave", GameTooltip_Hide)
-
-			if widgetType == "Button" then
-				widget.bg:Hide()
-				widget.text:SetTextColor(1, 1, 1)
-				widget:SetBackdrop(self.backdrop)
-				widget:SetBackdropColor(0, 0, 0, 1)
-				widget:SetBackdropBorderColor(1, 1, 1, 0.3)
-				widget:SetScript("OnEnter", WidgetButton_OnEnter)
-				widget:SetScript("OnLeave", WidgetButton_OnLeave)
-			end
-
-			if not parentFrame then
-				self.lastWidget = widget
-			end
-			return widget
-		end
-
-		function config.CreatePadding(self)
-			local frame = self:CreateWidget("Frame")
-			local _, lastWidget = frame:GetPoint(1)
-			frame:ClearAllPoints()
-			frame:SetPoint("TOPLEFT", lastWidget, "BOTTOMLEFT", 0, -14)
-			frame:SetPoint("BOTTOMRIGHT", lastWidget, "BOTTOMRIGHT", 0, -4)
-			frame.bg:Hide()
-			return frame
-		end
-
-		function config.CreateHeadline(self, text, parentFrame)
-			local frame = self:CreateWidget("Frame", nil, parentFrame)
-			frame.bg:Hide()
-			frame.text:SetText(text)
-			return frame
-		end
-
-		function config.CreateModuleToggle(self, name, addon1, addon2)
-			local frame = self:CreateWidget("Frame")
-			frame.text:SetText(name)
-			frame.addon2 = addon1
-			frame.addon1 = addon2
-			frame.checkButton:Show()
-			frame.checkButton2:Show()
-			self.modules[#self.modules + 1] = frame
-			return frame
-		end
-
-		function config.CreateOptionToggle(self, label, description, cvar, config)
-			local frame = self:CreateWidget("Frame")
-			frame.text:SetText(label)
-			frame.tooltip = description
-			frame.cvar = cvar
-			frame.needReload = (config and config.needReload) or false
-			frame.callback = (config and config.callback) or nil
-			frame.help.tooltip = description
-			frame.help:Show()
-			frame.checkButton:Show()
-			self.options[#self.options + 1] = frame
-			return frame
-		end
-
-		-- customize the look and feel
-		do
-			local function ConfigFrame_OnShow(self)
-				if not InCombatLockdown() then
-					if InterfaceOptionsFrame:IsShown() then
-						InterfaceOptionsFrame_Show()
-					end
-					HideUIPanel(GameMenuFrame)
-				end
-				config:Update()
-			end
-
-			local function ConfigFrame_OnDragStart(self)
-				self:StartMoving()
-			end
-
-			local function ConfigFrame_OnDragStop(self)
-				self:StopMovingOrSizing()
-			end
-
-			local function ConfigFrame_OnEvent(self, event)
-				if event == "PLAYER_REGEN_ENABLED" then
-					if self.combatHidden then
-						self.combatHidden = nil
-						self:Show()
-					end
-				elseif event == "PLAYER_REGEN_DISABLED" then
-					if self:IsShown() then
-						self.combatHidden = true
-						self:Hide()
-					end
-				end
-			end
-
-			configParentFrame:SetFrameStrata("DIALOG")
-			configParentFrame:SetFrameLevel(255)
-
-			configParentFrame:EnableMouse(true)
-			configParentFrame:SetClampedToScreen(true)
-			configParentFrame:SetDontSavePosition(true)
-			configParentFrame:SetMovable(true)
-			configParentFrame:RegisterForDrag("LeftButton")
-
-			configParentFrame:SetBackdrop(config.backdrop)
-			configParentFrame:SetBackdropColor(0, 0, 0, 0.8)
-			configParentFrame:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.8)
-
-			configParentFrame:SetScript("OnShow", ConfigFrame_OnShow)
-			configParentFrame:SetScript("OnDragStart", ConfigFrame_OnDragStart)
-			configParentFrame:SetScript("OnDragStop", ConfigFrame_OnDragStop)
-			configParentFrame:SetScript("OnEvent", ConfigFrame_OnEvent)
-
-			configParentFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-			configParentFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-
-			-- add widgets
-			local header = config:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS .. "\nVersion: " .. tostring(GetAddOnMetadata(addonName, "Version")), configHeaderFrame)
-			header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
-
-			config:CreateHeadline(L.MYTHIC_PLUS_SCORES)
-			config:CreateOptionToggle(L.SHOW_ON_PLAYER_UNITS, L.SHOW_ON_PLAYER_UNITS_DESC, "enableUnitTooltips")
-			config:CreateOptionToggle(L.SHOW_IN_LFD, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
-			config:CreateOptionToggle(L.SHOW_IN_FRIENDS, L.SHOW_IN_FRIENDS_DESC, "enableFriendsTooltips")
-			config:CreateOptionToggle(L.SHOW_ON_GUILD_ROSTER, L.SHOW_ON_GUILD_ROSTER_DESC, "enableGuildTooltips")
-			config:CreateOptionToggle(L.SHOW_IN_WHO_UI, L.SHOW_IN_WHO_UI_DESC, "enableWhoTooltips")
-			config:CreateOptionToggle(L.SHOW_IN_SLASH_WHO_RESULTS, L.SHOW_IN_SLASH_WHO_RESULTS_DESC, "enableWhoMessages")
-
-			config:CreatePadding()
-			config:CreateHeadline(L.TOOLTIP_CUSTOMIZATION)
-			config:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
-			config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
-			config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
-			config:CreateOptionToggle(L.ALWAYS_SHOW_EXTENDED_INFO, L.ALWAYS_SHOW_EXTENDED_INFO_DESC, "alwaysExtendTooltip")
-			config:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
-			config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
-			config:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
-
-			config:CreatePadding()
-			config:CreateHeadline(L.TOOLTIP_PROFILE)
-			config:CreateOptionToggle(L.SHOW_RAIDERIO_PROFILE, L.SHOW_RAIDERIO_PROFILE_DESC, "showRaiderIOProfile")
-			config:CreateOptionToggle(L.SHOW_LEADER_PROFILE, L.SHOW_LEADER_PROFILE_DESC, "enableProfileModifier")
-			config:CreateOptionToggle(L.INVERSE_PROFILE_MODIFIER, L.INVERSE_PROFILE_MODIFIER_DESC, "inverseProfileModifier")
-			config:CreateOptionToggle(L.ENABLE_AUTO_FRAME_POSITION, L.ENABLE_AUTO_FRAME_POSITION_DESC, "positionProfileAuto")
-			config:CreateOptionToggle(L.ENABLE_LOCK_PROFILE_FRAME, L.ENABLE_LOCK_PROFILE_FRAME_DESC, "lockProfile")
-
-			config:CreatePadding()
-			config:CreateHeadline(L.RAIDERIO_CLIENT_CUSTOMIZATION)
-			config:CreateOptionToggle(L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS, L.ENABLE_RAIDERIO_CLIENT_ENHANCEMENTS_DESC, "enableClientEnhancements")
-			config:CreateOptionToggle(L.SHOW_CLIENT_GUILD_BEST, L.SHOW_CLIENT_GUILD_BEST_DESC, "showClientGuildBest")
-
-			config:CreatePadding()
-			config:CreateHeadline(L.COPY_RAIDERIO_PROFILE_URL)
-			config:CreateOptionToggle(L.ALLOW_ON_PLAYER_UNITS, L.ALLOW_ON_PLAYER_UNITS_DESC, "showDropDownCopyURL")
-			config:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
-
-			config:CreatePadding()
-			config:CreateHeadline(L.MYTHIC_PLUS_DB_MODULES)
-			local module1 = config:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_A", "RaiderIO_DB_US_H")
-			config:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_A", "RaiderIO_DB_EU_H")
-			config:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_A", "RaiderIO_DB_KR_H")
-			config:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_A", "RaiderIO_DB_TW_H")
-
-			--config:CreatePadding()
-			--config:CreateHeadline(L.RAIDING_DB_MODULES)
-			--local module1 = config:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_A_R", "RaiderIO_DB_US_H_R")
-			--config:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_A_R", "RaiderIO_DB_EU_H_R")
-			--config:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_A_R", "RaiderIO_DB_KR_H_R")
-			--config:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_A_R", "RaiderIO_DB_TW_H_R")
-
-			-- add save button and cancel buttons
-			local buttons = config:CreateWidget("Frame", 4, configButtonFrame)
-			buttons:ClearAllPoints()
-			buttons:SetPoint("TOPLEFT", configButtonFrame, "TOPLEFT", 16, 0)
-			buttons:SetPoint("BOTTOMRIGHT", configButtonFrame, "TOPRIGHT", -16, -10)
-			buttons:Hide()
-			local save = config:CreateWidget("Button", 4, configButtonFrame)
-			local cancel = config:CreateWidget("Button", 4, configButtonFrame)
-			save:ClearAllPoints()
-			save:SetPoint("LEFT", buttons, "LEFT", 0, -12)
-			save:SetSize(96, 28)
-			save.text:SetText(SAVE)
-			save.text:SetJustifyH("CENTER")
-			save:SetScript("OnClick", Save_OnClick)
-			cancel:ClearAllPoints()
-			cancel:SetPoint("RIGHT", buttons, "RIGHT", 0, -12)
-			cancel:SetSize(96, 28)
-			cancel.text:SetText(CANCEL)
-			cancel.text:SetJustifyH("CENTER")
-			cancel:SetScript("OnClick", Close_OnClick)
-
-			-- adjust frame height dynamically
-			local children = {configFrame:GetChildren()}
-			local height = 50
-			for i = 1, #children do
-				height = height + children[i]:GetHeight() + 2
-			end
-
-			configSliderFrame:SetMinMaxValues(1, height - 440)
-			configFrame:SetHeight(height)
-
-			-- adjust frame width dynamically (add padding based on the largest option label string)
-			local maxWidth = 0
-			for i = 1, #config.options do
-				local option = config.options[i]
-				if option.text and option.text:GetObjectType() == "FontString" then
-					maxWidth = max(maxWidth, option.text:GetStringWidth())
-				end
-			end
-			configFrame:SetWidth(160 + maxWidth)
-			configParentFrame:SetWidth(160 + maxWidth)
-
-			-- add faction headers over the first module
-			local af = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_02:0:0:0:0:16:16:4:12:4:12|t")
-			af:ClearAllPoints()
-			af:SetPoint("BOTTOM", module1.checkButton2, "TOP", 2, -5)
-			af:SetSize(32, 32)
-			local hf = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_01:0:0:0:0:16:16:4:12:4:12|t")
-			hf:ClearAllPoints()
-			hf:SetPoint("BOTTOM", module1.checkButton, "TOP", 2, -5)
-			hf:SetSize(32, 32)
-		end
-
-		-- add the category and a shortcut button in the interface panel options
-		do
-			local function Button_OnClick()
-				if not InCombatLockdown() then
-					configParentFrame:SetShown(not configParentFrame:IsShown())
-				end
-			end
-
-			local panel = CreateFrame("Frame", configFrame:GetName() .. "Panel", InterfaceOptionsFramePanelContainer)
-			panel.name = addonName
-			panel:Hide()
-
-			local button = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-			button:SetText(L.OPEN_CONFIG)
-			button:SetWidth(button:GetTextWidth() + 18)
-			button:SetPoint("TOPLEFT", 16, -16)
-			button:SetScript("OnClick", Button_OnClick)
-
-			InterfaceOptions_AddCategory(panel, true)
-		end
-
-		-- create slash command to toggle the config frame
-		do
-			_G["SLASH_" .. addonName .. "1"] = "/raiderio"
-			_G["SLASH_" .. addonName .. "2"] = "/rio"
-
-			local function handler(text)
-				if type(text) == "string" then
-
-					-- if the keyword "lock" is present in the command we toggle lock behavior on profile frame
-					if text:find("[Ll][Oo][Cc][Kk]") then
-						ns.PROFILE_UI.ToggleLock()
-						return
-					end
-
-					-- if the keyword "search" is present in the command we show the query dialog
-					local searchQuery = text:match("[Ss][Ee][Aa][Rr][Cc][Hh]%s*(.-)$")
-					if searchQuery then
-						if not ns.SEARCH_UI and ns.SEARCH_INIT then
-							ns.SEARCH_INIT()
-						end
-						if ns.SEARCH_UI then
-							if strlenutf8(searchQuery) > 0 then
-								ns.SEARCH_UI:Show()
-								ns.SEARCH_UI:Search(searchQuery)
-							else
-								ns.SEARCH_UI:SetShown(not ns.SEARCH_UI:IsShown())
-							end
-						end
-						-- we do not wish to show the config dialog at this time
-						return
-					end
-
-				end
-
-				-- resume regular routine
-				if not InCombatLockdown() then
-					configParentFrame:SetShown(not configParentFrame:IsShown())
-				end
-			end
-
-			SlashCmdList[addonName] = handler
-		end
-	end
-end
-
 -- provider
 local AddProvider
 local GetScoreColor
@@ -1246,7 +680,7 @@ do
 
 			-- if character exists in the clientCharacters list then override some data with higher precision
 			-- TODO: only do this if the clientCharacters data isn't too old compared to regular addon date?
-			if ns.CLIENT_CHARACTERS and addonConfig.enableClientEnhancements then
+			if ns.CLIENT_CHARACTERS and ns.addonConfig.enableClientEnhancements then
 				local nameAndRealm = name .. "-" .. realm
 				local clientData = ns.CLIENT_CHARACTERS[nameAndRealm]
 
@@ -1339,12 +773,12 @@ do
 
 	-- returns score color using item colors
 	function GetScoreColor(score)
-		if score == 0 or addonConfig.disableScoreColors then
+		if score == 0 or ns.addonConfig.disableScoreColors then
 			return 1, 1, 1
 		end
 		local r, g, b = 0.62, 0.62, 0.62
 		if type(score) == "number" then
-			if not addonConfig.showSimpleScoreColors then
+			if not ns.addonConfig.showSimpleScoreColors then
 				for i = 1, #CONST_SCORE_TIER do
 					local tier = CONST_SCORE_TIER[i]
 					if score >= tier.score then
@@ -1525,7 +959,7 @@ do
 					end
 				end
 
-				if addonConfig.showMainsScore and profile.mainScore > profile.allScore then
+				if ns.addonConfig.showMainsScore and profile.mainScore > profile.allScore then
 					output[i] = {L.MAINS_SCORE, profile.mainScore, 1, 1, 1, GetScoreColor(profile.mainScore)}
 					i = i + 1
 				end
@@ -1846,7 +1280,7 @@ do
 	function addon:ADDON_LOADED(event, name)
 		-- the addon savedvariables are loaded and we can initialize the addon
 		if name == addonName then
-			Init()
+			ns.CONFIG.Init()
 		end
 
 		-- apply hooks to interface elements
@@ -1871,6 +1305,9 @@ do
 
 	-- we have logged in and character data is available
 	function addon:PLAYER_LOGIN()
+		-- do not allow second calls if already called
+		if ns.dataProvider then return end
+
 		-- store our faction for later use
 		PLAYER_FACTION = GetFaction("player")
 		PLAYER_REGION = GetRegion()
@@ -1970,7 +1407,7 @@ do
 	-- modifier key is toggled, update the tooltip if needed
 	function addon:MODIFIER_STATE_CHANGED(skipUpdatingTooltip)
 		-- if we always draw the full tooltip then this part of the code shouldn't be running at all
-		if addonConfig.alwaysExtendTooltip and not addonConfig.enableProfileModifier then
+		if ns.addonConfig.alwaysExtendTooltip and not ns.addonConfig.enableProfileModifier then
 			return
 		end
 		-- check if the mod state has changed, and only then run the update function
@@ -1988,7 +1425,7 @@ do
 		if skipConfig then
 			return IsModifierKeyDown()
 		end
-		return addonConfig.alwaysExtendTooltip or IsModifierKeyDown()
+		return ns.addonConfig.alwaysExtendTooltip or IsModifierKeyDown()
 	end
 end
 
@@ -2056,10 +1493,10 @@ do
 	-- GameTooltip
 	uiHooks[#uiHooks + 1] = function()
 		local function OnTooltipSetUnit(self)
-			if not addonConfig.enableUnitTooltips then
+			if not ns.addonConfig.enableUnitTooltips then
 				return
 			end
-			if not addonConfig.showScoreInCombat and InCombatLockdown() then
+			if not ns.addonConfig.showScoreInCombat and InCombatLockdown() then
 				return
 			end
 			-- TODO: summoning portals don't always trigger OnTooltipSetUnit properly, leaving the unit tooltip on the portal object
@@ -2077,7 +1514,7 @@ do
 			local OnEnter, OnLeave
 			-- application queue
 			function OnEnter(self)
-				if not addonConfig.enableLFGTooltips then
+				if not ns.addonConfig.enableLFGTooltips then
 					return
 				end
 				if self.applicantID and self.Members then
@@ -2139,7 +1576,7 @@ do
 	-- WhoFrame
 	uiHooks[#uiHooks + 1] = function()
 		local function OnEnter(self)
-			if not addonConfig.enableWhoTooltips then
+			if not ns.addonConfig.enableWhoTooltips then
 				return
 			end
 			if self.whoIndex then
@@ -2171,7 +1608,7 @@ do
 	-- FriendsFrame
 	uiHooks[#uiHooks + 1] = function()
 		local function OnEnter(self)
-			if not addonConfig.enableFriendsTooltips then
+			if not ns.addonConfig.enableFriendsTooltips then
 				return
 			end
 			local fullName, faction, level
@@ -2192,7 +1629,7 @@ do
 			end
 		end
 		local function FriendTooltip_Hide()
-			if not addonConfig.enableFriendsTooltips then
+			if not ns.addonConfig.enableFriendsTooltips then
 				return
 			end
 			GameTooltip:Hide()
@@ -2211,7 +1648,7 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.GuildFrame then
 			local function OnEnter(self)
-				if not addonConfig.enableGuildTooltips then
+				if not ns.addonConfig.enableGuildTooltips then
 					return
 				end
 				if self.guildIndex then
@@ -2242,7 +1679,7 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.CommunitiesFrame then
 			local function OnEnter(self)
-				if not addonConfig.enableGuildTooltips then
+				if not ns.addonConfig.enableGuildTooltips then
 					return
 				end
 				local info = self:GetMemberInfo()
@@ -2302,7 +1739,7 @@ do
 			end
 
 			-- show the mains season score
-			if addonConfig.showMainsScore and profile.mainScore > profile.allScore then
+			if ns.addonConfig.showMainsScore and profile.mainScore > profile.allScore then
 				text = text .. "(" .. L.MAINS_SCORE_COLON .. profile.mainScore .. "). "
 			end
 
@@ -2335,7 +1772,7 @@ do
 			return text
 		end
 		local function filter(self, event, text, ...)
-			if addonConfig.enableWhoMessages and event == "CHAT_MSG_SYSTEM" then
+			if ns.addonConfig.enableWhoMessages and event == "CHAT_MSG_SYSTEM" then
 				nameLink, name, level, race, class, guild, zone = text:match(FORMAT_GUILD)
 				if not zone then
 					guild = nil
@@ -2563,11 +2000,11 @@ do
 				return
 			end
 			if dropdown.Button == _G.LFGListFrameDropDownButton then -- LFD
-				if addonConfig.enableLFGDropdown then
+				if ns.addonConfig.enableLFGDropdown then
 					ShowCustomDropDown(self, dropdown, dropdown.menuList[2].arg1)
 				end
 			elseif dropdown.which and supportedTypes[dropdown.which] then -- UnitPopup
-				if addonConfig.showDropDownCopyURL then
+				if ns.addonConfig.showDropDownCopyURL then
 					local dropdownFullName
 					if dropdown.name then
 						if dropdown.server and not dropdown.name:find("-") then
@@ -2591,7 +2028,7 @@ do
 	-- Keystone Info
 	uiHooks[#uiHooks + 1] = function()
 		local function OnSetItem(tooltip)
-			if not addonConfig.enableKeystoneTooltips then
+			if not ns.addonConfig.enableKeystoneTooltips then
 				return
 			end
 			local _, link = tooltip:GetItem()
@@ -2660,7 +2097,7 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.PVEFrame then
 			local function Show()
-				if not addonConfig.showRaiderIOProfile then return end
+				if not ns.addonConfig.showRaiderIOProfile then return end
 				ns.PROFILE_UI.ShowProfile("player", nil, PLAYER_FACTION)
 			end
 			local function Hide()
@@ -2676,7 +2113,7 @@ do
 	uiHooks[#uiHooks + 1] = function()
 		if _G.ChallengesFrame and _G.PVEFrame then
 			local function Show()
-				if not ns.GUILD_BEST_DATA or not ns.GUILD_BEST_FRAME or not addonConfig.showClientGuildBest then return end
+				if not ns.GUILD_BEST_DATA or not ns.GUILD_BEST_FRAME or not ns.addonConfig.showClientGuildBest then return end
 				-- ns.GUILD_BEST_FRAME:Show()
 			end
 			local function Hide()
@@ -2693,7 +2130,6 @@ end
 
 -- private API
 do
-	ns.addon = addon
 	ns.LFD_ACTIVITYID_TO_DUNGEONID = LFD_ACTIVITYID_TO_DUNGEONID
 	ns.CONST_DUNGEONS = CONST_DUNGEONS
 	ns.IS_DB_OUTDATED = IS_DB_OUTDATED

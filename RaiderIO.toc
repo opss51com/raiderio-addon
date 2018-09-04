@@ -27,6 +27,7 @@ locale/ruRU.lua
 locale/zhCN.lua
 locale/zhTW.lua
 
+config.lua
 core.lua
 profile.lua
 search.lua
