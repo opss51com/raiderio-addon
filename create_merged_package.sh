@@ -16,7 +16,7 @@ wget -O latest.zip https://wow.curseforge.com/projects/raiderio/files/latest
 
 rm -rf addon
 unzip -d addon latest.zip
-rm -f addon/GuildBest.xml
+rm -f addon/guildbest.xml
 echo "Manual build $NEW_VERSION" > addon/CHANGES.txt
 
 echo "Overlaying latest DB..."
