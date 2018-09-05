@@ -10,21 +10,21 @@ Simply hover over a player with your mouse, your guild roster, or even the Group
 
 Additionally, you can right-click players from the standard target unit frame to `Copy Raider.IO URL` and then easily look up their full profile on the site. With this functionality you can directly paste these URLs anywhere on Raider.IO to navigate to that player's profile page.
 
-If you have run into any problems, check out our FAQ at https://raider.io/faq, or join us on Discord at: https://discord.gg/raider -- we always have people around willing to help.
+If you have run into any problems, check out our FAQ at https://raider.io/faq, or join us on Discord at: https://discord.gg/raider #addon-discussions -- we always have people around willing to help.
 
 [![Become a Patron](https://assets.raider.io/images/patreon/become_a_patron_button.png "Become a Patron")](https://www.patreon.com/RaiderIO)
 
 ## Getting Started
 
-The easiest way to get started is to download the Twitch Desktop App at: https://app.twitch.tv/download, and then search for the "Raider.IO Mythic Plus" addon and install it.
+The easiest way to get started is to use the RaiderIO Desktop App: https://raider.io/addon
 
-Once installed you can load into the game and you will start seeing Scores and Best Runs on players around you. This AddOn works by storing a snapshot of character data from Raider.IO and then using that to populate information on qualified players. To qualify for inclusion in the daily snapshot, players must meet this criteria:
+Once installed you can load into the game and you will start seeing Scores and Best Runs on players around you. This AddOn works by storing a snapshot of character data from Raider.IO and then using that to populate information on qualified players. To qualify for inclusion in a snapshot, players must meet this criteria:
 
-- Have earned at least 500 points in any of the currently relevant seasons (7.3.2, 7.3, 7.2.5, 7.2), or have completed a 10+ or 15+ dungeon in-time. _[Honored and higher patrons](https://www.patreon.com/RaiderIO) do not have a minimum score requirement in order to be shown in the addon._
+- Have earned at least 500 points in any of the currently relevant seasons (7.3.2, 7.3, 7.2.5, 7.2). _[Honored and higher patrons](https://www.patreon.com/RaiderIO) do not have a minimum score requirement in order to be shown in the addon._
 - Have logged in to the game within the past 30 days
 
 
-**Remember**: We update the addon with the latest scores and top runs **every day**. Update regularly to ensure you are seeing the freshest information. _Using the Twitch Client you can enable Automatic Updates for the addon to make this process a breeze_.
+**Remember**: We update the addon with the latest scores and top runs **every day**. Update regularly to ensure you are seeing the freshest information. _Using the RaiderIO Client you can keep your addon updated automatically!_
 
 ## Patreon Rewards
 
@@ -77,7 +77,7 @@ _Remember to click Save to save the changes, or Cancel to abort and close the di
 
 Scores map to a specific color based on their range. We've followed the standard WoW quality colors, but added additional gradients between the base values to provide more brackets to ascend through. See the full tiers here:
 
-![Raider.IO AddOn Score Tiers](https://assets.raider.io/images/addon/score_tiers.png "Raider.IO AddOn Score Tiers")
+![Raider.IO AddOn Score Tiers](https://cdnassets.raider.io/images/addon/score_tiers_800.png "Raider.IO AddOn Score Tiers")
 
 ## Developer API
 
