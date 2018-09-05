@@ -894,6 +894,7 @@ do
 						end
 					end
 
+					-- if we don't have a best dungeon focused by this point, try to find one based on our queue or current instance
 					if not best.dungeon and addLFD then
 						local numSigned, status = GetLFDStatus()
 						if numSigned then
@@ -908,6 +909,7 @@ do
 									end
 								end
 								best.dungeon = highestDungeon
+								best.level = highestDungeon.level
 							end
 						end
 						if not best.dungeon then
@@ -915,8 +917,14 @@ do
 						end
 					end
 
-					if best.dungeon then
+					-- if we have a dungeon, but no level assigned to it, try to read one from our profile
+					if best.dungeon and not best.level then
 						best.level = profile.dungeons[best.dungeon.index]
+					end
+
+					-- if no dungeon, or the level is undefined or 0, drop showing both as it's irrelevant information
+					if not best.dungeon or (best.level and best.level < 1) then
+						best.dungeon, best.level = nil
 					end
 
 					-- Jah: Disabled for now, as everyone who did a +15 in Legion will have one in BFA since we are sharing achievements
