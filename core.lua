@@ -2163,17 +2163,12 @@ do
 	-- Guild Weekly Best
 	uiHooks[#uiHooks + 1] = function()
 		if _G.ChallengesFrame and _G.PVEFrame then
-			local function Show()
+			local function Refresh()
 				if not ns.GUILD_BEST_DATA or not ns.addonConfig.showClientGuildBest then return end
-				ns.GUILD_BEST_FRAME:Show()
+				ns.GUILD_BEST_FRAME:Refresh()
 			end
-			local function Hide()
-				ns.GUILD_BEST_FRAME:Hide()
-			end
-			ChallengesFrame:HookScript("OnShow", Show)
-			ChallengesFrame:HookScript("OnHide", Hide)
-			PVEFrame:HookScript("OnShow", Show)
-			PVEFrame:HookScript("OnHide", Hide)
+			ChallengesFrame:HookScript("OnShow", Refresh)
+			PVEFrame:HookScript("OnShow", Refresh)
 			return 1
 		end
 	end
@@ -2310,3 +2305,7 @@ _G.RaiderIO.AddProvider = AddProvider
 -- register events and wait for the addon load event to fire
 addon:SetScript("OnEvent", function(_, event, ...) addon[event](addon, event, ...) end)
 addon:RegisterEvent("ADDON_LOADED")
+
+-- DOESN'T DO ANYTHING AND WILL BE REMOVED ONCE SERVER SIDE IS PATCHED
+_G.RaiderIO.AddClientCharacters = function() end
+_G.RaiderIO.AddClientGuilds = function() end

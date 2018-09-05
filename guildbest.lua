@@ -23,6 +23,24 @@ RaiderIO_GuildBestMixin = {}
 function RaiderIO_GuildBestMixin:OnLoad()
 	-- namespace reference
 	ns.GUILD_BEST_FRAME = self
+	-- make it tiny bit larger
+	self:SetScale(1.2)
+	-- prepare to be shown later
+	self:Reset()
+	-- set the title of the container
+	self.Title:SetText(L.GUILD_BEST_TITLE)
+end
+
+function RaiderIO_GuildBestMixin:Refresh()
+	if not ChallengesFrame then self:Reset() self:Hide() return end
+	local guildFullName = GetGuildFullName("player")
+	if not guildFullName then self:Reset() self:Hide() return end
+	self:SetParent(ChallengesFrame)
+	self:ClearAllPoints()
+	self:SetPoint("BOTTOMLEFT", ChallengesFrame.WeeklyInfo.Child.SeasonBest, "TOPLEFT", 0, 0)
+	self:SetFrameStrata("HIGH")
+	self:SetUp(guildFullName)
+	self:Show()
 end
 
 function RaiderIO_GuildBestMixin:SwitchBestRun()
@@ -71,21 +89,6 @@ function RaiderIO_GuildBestMixin:Reset()
 	end
 end
 
-function RaiderIO_GuildBestMixin:OnShow()
-	if not ChallengesFrame then return self:Hide() end
-	local guildFullName = GetGuildFullName("player")
-	if not guildFullName then return self:Hide() end
-	self:SetParent(ChallengesFrame)
-	self:ClearAllPoints()
-	self:SetPoint("BOTTOMRIGHT", ChallengesFrame.DungeonIcons[#ChallengesFrame.DungeonIcons], "TOPRIGHT")
-	self:SetFrameStrata("HIGH")
-	self:SetUp(guildFullName)
-end
-
-function RaiderIO_GuildBestMixin:OnHide()
-	self:Reset()
-end
-
 RaiderIO_SwitchGuildBestMixin = {}
 
 function RaiderIO_SwitchGuildBestMixin:OnLoad()
@@ -113,7 +116,7 @@ function RaiderIO_GuildBestRunMixin:SetUp(runInfo)
 end
 
 function RaiderIO_GuildBestRunMixin:OnEnter()
-	GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+	GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 	GameTooltip:SetText(C_ChallengeMode.GetMapUIInfo(ns.GetDungeonWithData("id", self.runInfo.zone_id).keystone_instance), 1, 1, 1)
 	local upgradeStr = ""
 	if self.runInfo.upgrades > 0 then
