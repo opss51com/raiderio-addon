@@ -43,6 +43,7 @@ sample-data
 
 # Node
 node_modules
-/CHANGES.txt
-/db/db_client_characters.lua
-/db/db_client_guilds.lua
+
+# Client related files we don't need to commit back to git
+CHANGES.txt
+db_client_*.lua
