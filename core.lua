@@ -1241,7 +1241,7 @@ do
 		if arg1 == true then
 			modBit, modBitIsArg = arg3, true
 		elseif arg1 == false then
-			modBit, modBitIsArg = arg2[3], false
+			modBit, modBitIsArg = arg2[2], false
 		end
 		if modBit then
 			if band(modBit, ProfileOutput.MOD_KEY_DOWN) == ProfileOutput.MOD_KEY_DOWN then
