@@ -44,3 +44,5 @@ sample-data
 # Node
 node_modules
 /CHANGES.txt
+/db/db_client_characters.lua
+/db/db_client_guilds.lua
