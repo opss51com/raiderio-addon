@@ -20,7 +20,7 @@ The easiest way to get started is to use the RaiderIO Desktop App: https://raide
 
 Once installed you can load into the game and you will start seeing Scores and Best Runs on players around you. This AddOn works by storing a snapshot of character data from Raider.IO and then using that to populate information on qualified players. To qualify for inclusion in a snapshot, players must meet this criteria:
 
-- Have earned at least 500 points in any of the currently relevant seasons (7.3.2, 7.3, 7.2.5, 7.2). _[Honored and higher patrons](https://www.patreon.com/RaiderIO) do not have a minimum score requirement in order to be shown in the addon._
+- Have earned at least 500 points in any of the currently relevant seasons (8.0). _[Honored and higher patrons](https://www.patreon.com/RaiderIO) do not have a minimum score requirement in order to be shown in the addon._
 - Have logged in to the game within the past 30 days
 
 
