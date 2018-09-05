@@ -43,3 +43,4 @@ sample-data
 
 # Node
 node_modules
+/CHANGES.txt
