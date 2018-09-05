@@ -2109,7 +2109,7 @@ do
 						for i = 0, n do
 							local unit = i == 0 and "player" or "party" .. i
 							local profile = GetPlayerProfile(ProfileOutput.MYTHICPLUS, unit)
-							if profile then
+							if profile and profile.dungeons then
 								local level = profile.dungeons[index]
 								if level > 0 then
 									-- TODO: sort these by dungeon level, descending
