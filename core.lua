@@ -2062,23 +2062,32 @@ do
 
 	-- Keystone Info
 	uiHooks[#uiHooks + 1] = function()
+		local KEYSTONE_PATTERNS = {
+			"keystone:%d+:(%d+):(%d+):(%d+):(%d+):(%d+)",
+			"item:138019:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(%d+):(%d+):(%d+):(%d+):(%d+)",
+			"item:158923:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(%d+):(%d+):(%d+):(%d+):(%d+)",
+		}
+		local function SortByLevelDesc(a, b)
+			if a[2] == b[2] then
+				if a[3] == b[3] then
+					return a[1] < b[1]
+				end
+				return a[3] < b[3]
+			end
+			return a[2] > b[2]
+		end
 		local function OnSetItem(tooltip)
 			if not ns.addonConfig.enableKeystoneTooltips then
 				return
 			end
+
 			local _, link = tooltip:GetItem()
 			if type(link) ~= "string" then
 				return
 			end
 
-			local patterns = {
-				"keystone:%d+:(%d+):(%d+):(%d+):(%d+):(%d+)",
-				"item:138019:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(%d+):(%d+):(%d+):(%d+):(%d+)",
-				"item:158923:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(%d+):(%d+):(%d+):(%d+):(%d+)",
-			};
-
 			local inst, lvl, a1, a2, a3;
-			for _, pattern in ipairs(patterns) do
+			for _, pattern in ipairs(KEYSTONE_PATTERNS) do
 				inst, lvl, a1, a2, a3 = link:match(pattern)
 
 				if lvl and (tonumber(lvl) or 100) < 100 then
@@ -2098,7 +2107,7 @@ do
 			tooltip:AddLine(" ")
 			tooltip:AddDoubleLine(L.RAIDERIO_MP_BASE_SCORE, baseScore, 1, 0.85, 0, 1, 1, 1)
 
-			-- AppendAveragePlayerScore(tooltip, lvl)
+			-- TODO: AppendAveragePlayerScore(tooltip, lvl)
 
 			inst = tonumber(inst)
 			if inst then
@@ -2106,21 +2115,30 @@ do
 				if index then
 					local n = GetNumGroupMembers()
 					if n <= 5 then -- let's show score only if we are in a 5 man group/raid
+						local t, j = {}, 0
 						for i = 0, n do
 							local unit = i == 0 and "player" or "party" .. i
 							local profile = GetPlayerProfile(ProfileOutput.MYTHICPLUS, unit)
 							if profile then
-								local level = profile.dungeons[index]
+								local level = profile.profile.dungeons[index]
 								if level > 0 then
-									-- TODO: sort these by dungeon level, descending
-									local dungeonName = CONST_DUNGEONS[index] and " " .. CONST_DUNGEONS[index].shortNameLocale or ""
-									tooltip:AddDoubleLine(UnitName(unit), "+" .. level .. dungeonName, 1, 1, 1, 1, 1, 1)
+									local dungeon = CONST_DUNGEONS[index]
+									j = j + 1
+									t[j]= { UnitName(unit), level, dungeon and " " .. dungeon.shortNameLocale or "" }
 								end
+							end
+						end
+						if j > 0 then
+							table.sort(t, SortByLevelDesc)
+							for i = 1, j do
+								local name, level, dungeonName = t[i][1], t[i][2], t[i][3]
+								tooltip:AddDoubleLine(name, "+" .. level .. dungeonName, 1, 1, 1, 1, 1, 1)
 							end
 						end
 					end
 				end
 			end
+
 			tooltip:Show()
 		end
 		GameTooltip:HookScript("OnTooltipSetItem", OnSetItem)
