@@ -113,10 +113,10 @@ A function that returns a table with different data types, based on the type of 
 ```
 RaiderIO.GetPlayerProfile(unitOrNameOrNameRealm, realmOrNil, factionOrNil, ...) => nil | profile, hasData, isCached, hasDataFromMultipleProviders
 
-RaiderIO.GetPlayerProfile("target")
-RaiderIO.GetPlayerProfile("Joe")
-RaiderIO.GetPlayerProfile("Joe-ArgentDawn")
-RaiderIO.GetPlayerProfile("Joe", "ArgentDawn")
+RaiderIO.GetPlayerProfile(0, "target")
+RaiderIO.GetPlayerProfile(0, "Joe")
+RaiderIO.GetPlayerProfile(0, "Joe-ArgentDawn")
+RaiderIO.GetPlayerProfile(0, "Joe", "ArgentDawn")
 ```
 
 ### RaiderIO.ShowTooltip
