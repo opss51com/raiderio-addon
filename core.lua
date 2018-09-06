@@ -2233,14 +2233,17 @@ do
 	local function GetCallingAddOnName(stack)
 		local _, c1, c2, c3, c4, c5, c6 = ("[\r\n]+"):split(stack)
 		c1, c2, c3, c4, c5, c6 = GetAddOnNameAndFile(c1), GetAddOnNameAndFile(c2), GetAddOnNameAndFile(c3), GetAddOnNameAndFile(c4), GetAddOnNameAndFile(c5), GetAddOnNameAndFile(c6)
-		return c1 or c2 or c3 or c4 or c5 or c6 or L.API_DEPRECATED_ANONYMOUS_FUNCTION
+		local file = c1 or c2 or c3 or c4 or c5 or c6
+		return file and file:match("^%s*(.-)%s*[%\\%/]") or L.API_DEPRECATED_UNKNOWN_ADDON, file or L.API_DEPRECATED_UNKNOWN_FILE
 	end
 
 	-- writes a notification about the particular API call but only once per session
 	local function Notify(funcName, newFuncName, stack)
 		if notified[funcName] then return end
+		local addon, file = GetCallingAddOnName(stack)
+		if not addon then return end
 		notified[funcName] = true
-		DEFAULT_CHAT_FRAME:AddMessage(format(L[newFuncName and "API_DEPRECATED_WITH" or "API_DEPRECATED"], funcName, newFuncName, GetCallingAddOnName(stack)), 1, 1, 0)
+		DEFAULT_CHAT_FRAME:AddMessage(format(L[newFuncName and "API_DEPRECATED_WITH" or "API_DEPRECATED"], addon, funcName, addon, newFuncName or file, file), 1, 1, 0)
 	end
 
 	-- wraps the deprecated function and calls the new API with the appropriate arguments
