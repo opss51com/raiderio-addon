@@ -168,7 +168,7 @@ do
 				local name, realm = ns.GetNameAndRealm(unit)
 				if name then
 					i = i + 1
-					data.group[i] = format("%d-%s-%s", GetUnitRole(unit), name, realm)
+					data.group[i] = format("%d-%s-%s", GetUnitRole(unit), name, ns.GetRealmSlug(realm))
 				end
 			end
 		end
@@ -197,9 +197,9 @@ do
 								if numMembers > 1 then
 									memberIndex = memberIndex + 1
 									data.queue[i] = data.queue[i] or {}
-									data.queue[i][memberIndex] = format("%d-%s-%s", role, name, realm)
+									data.queue[i][memberIndex] = format("%d-%s-%s", role, name, ns.GetRealmSlug(realm))
 								else
-									data.queue[i] = format("%d-%s-%s", role, name, realm)
+									data.queue[i] = format("%d-%s-%s", role, name, ns.GetRealmSlug(realm))
 								end
 							end
 						end
