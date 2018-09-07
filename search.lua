@@ -147,10 +147,14 @@ local function UpdateTooltip(realm, name)
 	if realm and name and strlenutf8(realm) > 0 and strlenutf8(name) > 0 then
 		Tooltip:SetParent(Frame)
 		Tooltip:SetOwner(Frame, "ANCHOR_BOTTOM", 0, -8)
-		if not ns.ShowTooltip(Tooltip, bit.bor(ns.ProfileOutput.DEFAULT, ns.ProfileOutput.MOD_KEY_DOWN_STICKY, ns.ProfileOutput.ADD_NAME), name, realm) then
+		local isShown = ns.ShowTooltip(Tooltip, bit.bor(ns.ProfileOutput.DEFAULT, ns.ProfileOutput.MOD_KEY_DOWN_STICKY, ns.ProfileOutput.ADD_NAME), name, realm)
+		if not isShown then
 			Tooltip:AddLine(ERR_FRIEND_NOT_FOUND, 1, 1, 1, false)
 		end
 		Tooltip:Show()
+		if isShown then
+			ns.PROFILE_UI.ShowProfile(name, realm, nil, Tooltip)
+		end
 	else
 		Tooltip:Hide()
 	end
