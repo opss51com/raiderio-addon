@@ -900,6 +900,7 @@ do
 						if numSigned then
 							if numSigned == true then
 								best.dungeon = status.dungeon
+								best.level = status.level
 							elseif numSigned > 0 then
 								local highestDungeon
 								for j = 1, numSigned do
@@ -918,7 +919,7 @@ do
 					end
 
 					-- if we have a dungeon, but no level assigned to it, try to read one from our profile
-					if best.dungeon and not best.level then
+					if best.dungeon and (not best.level or best.level < 1) then
 						best.level = profile.dungeons[best.dungeon.index]
 					end
 
