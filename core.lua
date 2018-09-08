@@ -1177,7 +1177,7 @@ do
 			-- store tooltip args for refresh purposes
 			local tooltipCache = tooltipArgs[tooltip]
 			if isCached then
-				tooltipCache[1], tooltipCache[2], tooltipCache[3], tooltipCache[4], tooltipCache[5], tooltipCache[6], tooltipCache[7], tooltipCache[8] = true, tooltip, outputFlag, unitOrNameOrNameAndRealm, realmOrNil, factionOrNil
+				tooltipCache[1], tooltipCache[2], tooltipCache[3], tooltipCache[4], tooltipCache[5], tooltipCache[6], tooltipCache[7], tooltipCache[8] = true, tooltip, outputFlag, unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, arg1, ...
 			else
 				tooltipCache[1], tooltipCache[2], tooltipCache[3], tooltipCache[4], tooltipCache[5], tooltipCache[6], tooltipCache[7], tooltipCache[8] = false, {tooltip, outputFlag, unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, arg1, ...}
 			end
@@ -1255,7 +1255,7 @@ do
 			if modBitIsArg then
 				arg3 = modBit
 			else
-				arg2[3] = modBit
+				arg2[2] = modBit
 			end
 		end
 		-- finalize by calling the show tooltip API with the same arguments as earlier
