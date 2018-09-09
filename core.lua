@@ -900,7 +900,7 @@ do
 						if numSigned then
 							if numSigned == true then
 								best.dungeon = status.dungeon
-								best.level = status.level
+								best.level = status.level or 0
 							elseif numSigned > 0 then
 								local highestDungeon
 								for j = 1, numSigned do
@@ -910,7 +910,7 @@ do
 									end
 								end
 								best.dungeon = highestDungeon
-								best.level = highestDungeon.level
+								best.level = highestDungeon.level or 0
 							end
 						end
 						if not best.dungeon then
@@ -920,12 +920,12 @@ do
 
 					-- if we have a dungeon, but no level assigned to it, try to read one from our profile
 					if best.dungeon and (not best.level or best.level < 1) then
-						best.level = profile.dungeons[best.dungeon.index]
+						best.level = profile.dungeons[best.dungeon.index] or 0
 					end
 
 					-- if no dungeon, or the level is undefined or 0, drop showing both as it's irrelevant information
 					if not best.dungeon or (best.level and best.level < 1) then
-						best.dungeon, best.level = nil
+						best.dungeon, best.level = nil, 0
 					end
 
 					-- Jah: Disabled for now, as everyone who did a +15 in Legion will have one in BFA since we are sharing achievements
