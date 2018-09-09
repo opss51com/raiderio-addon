@@ -57,13 +57,8 @@ do
 	local function PopulateProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, lfdActivityID, keystoneLevel)
 		-- respect modifier and inverse modifier behavior for the profile tooltip
 		if ns.addonConfig.enableProfileModifier then
-			if (ns.addonConfig.inverseProfileModifier and not ns.addon:IsModifierKeyDown(true)) or (not ns.addonConfig.inverseProfileModifier and ns.addon:IsModifierKeyDown(true)) then
-				-- this doublechecks if the original hover actually has data so we don't attempt to compare ours and theirs profiles when it only shows our own
-				if not ns.HasPlayerProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil) then
-					return
-				end
-				-- exception case where we actually don't want to show the player profile but the original hover profile
-				if not (not ns.addonConfig.showRaiderIOProfile and ns.addonConfig.enableProfileModifier and not ns.addonConfig.inverseProfileModifier) then
+			if (ns.addonConfig.inverseProfileModifier == ns.addon:IsModifierKeyDown(true) or not ns.HasPlayerProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil)) then
+				if not (not ns.addonConfig.showRaiderIOProfile) then
 					unitOrNameOrNameAndRealm, realmOrNil = "player"
 				end
 			end
