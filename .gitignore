@@ -40,6 +40,7 @@ nppBackup/
 # Build artifacts
 build
 sample-data
+package
 
 # Node
 node_modules
