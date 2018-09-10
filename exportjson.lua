@@ -271,12 +271,5 @@ do
 	ExportButton:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 end
 
--- temporarily disable until it's ready for release (but let it work during debug mode)
-if not ns.DEBUG_MODE then
-	ExportButton:SetScript("OnEvent", nil)
-	ExportButton:UnregisterAllEvents()
-	ExportButton:Hide()
-end
-
 -- namespace references
 ns.EXPORT_JSON = ExportButton
