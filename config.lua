@@ -533,6 +533,13 @@ do
 						return
 					end
 
+					-- if the keyword "group" is present in the command we show the EXPORT JSON dialog
+					if text:find("[Gg][Rr][Oo][Uu][Pp]") then
+						if ns.EXPORT_JSON then
+							ns.EXPORT_JSON.OpenCopyDialog()
+						end
+						return
+					end
 				end
 
 				-- resume regular routine
