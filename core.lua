@@ -34,6 +34,7 @@ local PLAYER_REGION
 local IS_DB_OUTDATED = {}
 local OUTDATED_DAYS = {}
 local OUTDATED_HOURS = {}
+local INVALID_DATA_MESSAGE_SENT = false
 
 -- constants
 local CONST_REALM_SLUGS = ns.realmSlugs
@@ -765,8 +766,17 @@ do
 	end
 
 	function AddProvider(data)
+		assert(type(data) == "table", "Raider.IO has been requested to load an invalid database.")
+		if type(data.data) == "nil" then
+			-- when this isn't set we assume this is an old pre BFA S1 dataset, so we want to ignore it
+			if not INVALID_DATA_MESSAGE_SENT then
+				DEFAULT_CHAT_FRAME:AddMessage(format(L.API_INVALID_DATABASE, data.name or "<UNKNOWN>"), 1, 1, 0)
+				INVALID_DATA_MESSAGE_SENT = true
+			end
+			return
+		end
 		-- make sure the object is what we expect it to be like
-		assert(type(data) == "table" and type(data.name) == "string" and type(data.data) == "number" and type(data.region) == "string" and type(data.faction) == "number", "Raider.IO has been requested to load a database that isn't supported.")
+		assert(type(data.name) == "string" and type(data.data) == "number" and type(data.region) == "string" and type(data.faction) == "number", "Raider.IO has been requested to load a database that isn't supported.")
 		-- queue it for later inspection
 		dataProviderQueue[#dataProviderQueue + 1] = data
 	end

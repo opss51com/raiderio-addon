@@ -118,6 +118,7 @@ L.API_DEPRECATED = "|cffFF0000Warning!|r The addon |cffFFFFFF%s|r is calling a d
 L.API_DEPRECATED_WITH = "|cffFF0000Warning!|r The addon |cffFFFFFF%s|r is calling a deprecated function RaiderIO.%s. This function will be removed in future releases. Please encourage the author of %s to update to the new API RaiderIO.%s instead. Call stack: %s"
 L.API_DEPRECATED_UNKNOWN_ADDON = "<Unknown AddOn>"
 L.API_DEPRECATED_UNKNOWN_FILE = "<Unknown AddOn File>"
+L.API_INVALID_DATABASE = "|cffFF0000Warning!|r Detected an invalid RaiderIO database in |cffffffff%s|r. Please refresh all regions and factions in the RaiderIO Client, or reinstall the Addon manually."
 L.EXPORTJSON_COPY_TEXT = "Copy the following and paste it anywhere on |cff00C8FFhttps://raider.io|r to look up all players."
 
 ns.L = L
