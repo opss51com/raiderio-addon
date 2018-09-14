@@ -5,6 +5,7 @@ local L = ns.L
 
 -- utility functions
 local GetGuildFullName
+local GetGuildLeaders
 do
 	function GetGuildFullName(unit)
 		local guildName, _, _, guildRealm = GetGuildInfo(unit)
@@ -15,6 +16,103 @@ do
 			_, guildRealm = ns.GetNameAndRealm(unit)
 		end
 		return guildName .. "-" .. guildRealm
+	end
+
+	local function IsRunTheSameRun(r1, r2)
+		if r1.zone_id == r2.zone_id and r1.level == r2.level then
+			local a, b = #r1.party, 0
+			for i = 1, #r1.party do
+				for j = 1, #r2.party do
+					if r1.party[i].name == r2.party[j].name then
+						b = b + 1
+					end
+				end
+			end
+			return a == b
+		end
+		return false
+	end
+
+	local function IsRunInGuildData(weekData, run)
+		for i = 1, #weekData do
+			local r = weekData[i]
+			if IsRunTheSameRun(r, run) then
+				return true
+			end
+		end
+		return false
+	end
+
+	local function GetDungeonFromChallengeModeID(mapChallengeModeID)
+		for i = 1, #ns.CONST_DUNGEONS do
+			local dungeon = ns.CONST_DUNGEONS[i]
+			if dungeon.keystone_instance == mapChallengeModeID then
+				return dungeon
+			end
+		end
+	end
+
+	local CLASS_FILENAME_TO_ID = {
+		WARRIOR = 1,
+		PALADIN = 2,
+		HUNTER = 3,
+		ROGUE = 4,
+		PRIEST = 5,
+		DEATHKNIGHT = 6,
+		SHAMAN = 7,
+		MAGE = 8,
+		WARLOCK = 9,
+		MONK = 10,
+		DRUID = 11,
+		DEMONHUNTER = 12,
+	}
+
+	local function ConvertRunData(run)
+		local dungeon = GetDungeonFromChallengeModeID(run.mapChallengeModeID)
+		local r = {
+			zone_id = dungeon and dungeon.id or 0,
+			level = run.keystoneLevel or 0,
+			upgrades = 0,
+			party = {},
+		}
+		for i = 1, #run.members do
+			local member = run.members[i]
+			r.party[i] = {
+				name = member.name,
+				class_id = CLASS_FILENAME_TO_ID[member.classFileName] or 0,
+			}
+		end
+		return r
+	end
+
+	function GetGuildLeaders(guildBestData)
+		local data = setmetatable({ weekly_best = {} }, { __index = guildBestData })
+		local weekData = data.weekly_best
+		local hasGuildData = guildBestData
+
+		if hasGuildData and hasGuildData.weekly_best then
+			for i = 1, #hasGuildData.weekly_best do
+				weekData[i] = hasGuildData.weekly_best[i]
+			end
+		end
+
+		if type(C_ChallengeMode.GetGuildLeaders) == "function" then
+			local leaders = C_ChallengeMode.GetGuildLeaders()
+			if leaders and leaders[1] then
+				for i = 1, #leaders do
+					local run = ConvertRunData(leaders[i])
+					if hasGuildData then
+						if not IsRunInGuildData(weekData, run) then
+							weekData[#weekData + 1] = run
+						end
+					else
+						weekData[#weekData + 1] = run
+					end
+				end
+			end
+		end
+
+		return data
 	end
 end
 
@@ -49,32 +147,37 @@ function RaiderIO_GuildBestMixin:SwitchBestRun()
 end
 
 function RaiderIO_GuildBestMixin:SetUp(guildFullName)
-	local bestRuns = ns.GUILD_BEST_DATA and ns.GUILD_BEST_DATA[guildFullName] or {}
+	local guildBestData = ns.GUILD_BEST_DATA and ns.GUILD_BEST_DATA[guildFullName]
+	local bestRuns = guildBestData
 
 	local keyBest = "season_best"
 	local title = L.GUILD_BEST_SEASON
 
-	if ns.addonConfig.displayWeeklyGuildBest then
+	if not guildBestData or ns.addonConfig.displayWeeklyGuildBest then
+		if not guildBestData then
+			bestRuns = GetGuildLeaders(guildBestData)
+		end
 		keyBest = "weekly_best"
 		title = L.GUILD_BEST_WEEKLY
 	end
 
+	self.SwitchGuildBest:SetShown(guildBestData)
 	self.SubTitle:SetText(title)
-	self.bestRuns = (bestRuns and bestRuns[keyBest]) or {}
+	self.bestRuns = bestRuns and bestRuns[keyBest] or {}
 	self:Reset()
 
-	if not self.bestRuns or #self.bestRuns == 0 then
+	if not self.bestRuns or not self.bestRuns[1] then
 		self.GuildBestNoRun:Show()
 		return
 	end
 
-	for i, run in ipairs(self.bestRuns) do
+	for i = 1, #self.bestRuns do
 		local frame = self.GuildBests[i]
 		if not frame then
 			frame = CreateFrame("Frame", nil, ns.GUILD_BEST_FRAME, "RaiderIO_GuildBestRunTemplate")
 			frame:SetPoint("TOP", self.GuildBests[i-1], "BOTTOM")
 		end
-		frame:SetUp(run)
+		frame:SetUp(self.bestRuns[i])
 		frame:Show()
 	end
 end
@@ -109,7 +212,7 @@ function RaiderIO_GuildBestRunMixin:SetUp(runInfo)
 	self.runInfo = runInfo
 	self.CharacterName:SetText(ns.GetDungeonWithData("id", self.runInfo.zone_id).shortNameLocale)
 	self.Level:SetTextColor(1, 1, 1)
-	if self.runInfo.upgrades == 0 then
+	if self.runInfo.clear_time and self.runInfo.upgrades == 0 then
 		self.Level:SetTextColor(.62, .62, .62)
 	end
 	self.Level:SetText(ns.GetStarsForUpgrades(self.runInfo.upgrades) .. self.runInfo.level)
@@ -123,22 +226,28 @@ function RaiderIO_GuildBestRunMixin:OnEnter()
 		upgradeStr = " (" .. ns.GetStarsForUpgrades(self.runInfo.upgrades, true) .. ")"
 	end
 	GameTooltip:AddLine(MYTHIC_PLUS_POWER_LEVEL:format(self.runInfo.level) .. upgradeStr, 1, 1, 1)
-	GameTooltip:AddLine(self.runInfo.clear_time, 1, 1, 1)
+	if self.runInfo.clear_time then
+		GameTooltip:AddLine(self.runInfo.clear_time, 1, 1, 1)
+	end
 	if self.runInfo.party then
 		GameTooltip:AddLine(" ")
 		for i, member in ipairs(self.runInfo.party) do
-			if (member.name) then
+			if member.name then
 				local classInfo = C_CreatureInfo.GetClassInfo(member.class_id)
 				local color = (classInfo and RAID_CLASS_COLORS[classInfo.classFile]) or NORMAL_FONT_COLOR
 				local texture
-				if (member.role == "tank") then
+				if member.role == "tank" or member.role == "TANK" then
 					texture = CreateAtlasMarkup("roleicon-tiny-tank")
-				elseif (member.role == "dps") then
+				elseif member.role == "dps" or member.role == "DAMAGER" then
 					texture = CreateAtlasMarkup("roleicon-tiny-dps")
-				elseif (member.role == "healer") then
+				elseif member.role == "healer" or member.role == "HEALER" then
 					texture = CreateAtlasMarkup("roleicon-tiny-healer")
 				end
-				GameTooltip:AddLine(MYTHIC_PLUS_LEADER_BOARD_NAME_ICON:format(texture, member.name), color.r, color.g, color.b)
+				if texture then
+					GameTooltip:AddLine(MYTHIC_PLUS_LEADER_BOARD_NAME_ICON:format(texture, member.name), color.r, color.g, color.b)
+				else
+					GameTooltip:AddLine(member.name, color.r, color.g, color.b)
+				end
 			end
 		end
 	end
