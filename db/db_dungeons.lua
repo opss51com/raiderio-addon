@@ -8,7 +8,7 @@ ns.dungeons = {
 		["instance_map_id"] = 1594,
 		["lfd_activity_ids"] = { 509, 511, 646, 510 },
 		["name"] = "The MOTHERLODE!!",
-		["shortName"] = "TM"
+		["shortName"] = "ML"
 	},
 	[2] = {
 		["id"] = 9028,
