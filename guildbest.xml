@@ -24,16 +24,27 @@
             <OnLeave function="GameTooltip_Hide"/>
         </Scripts>
     </Frame>
-    <Frame name="RaiderIO_GuildBestFrame" parentKey="GuildBest" mixin="RaiderIO_GuildBestMixin" hidden="true">
-        <Size x="90" y="105" />
+    <Frame name="RaiderIO_GuildBestFrame" parentKey="GuildBest" mixin="RaiderIO_GuildBestMixin" frameStrata="HIGH" hidden="true">
+        <Size x="100" y="115" />
+        <Backdrop bgFile="Interface\Tooltips\UI-Tooltip-Background" edgeFile="Interface\Tooltips\UI-Tooltip-Border" tile="true">
+            <EdgeSize>
+                <AbsValue val="16"/>
+            </EdgeSize>
+            <TileSize>
+                <AbsValue val="16"/>
+            </TileSize>
+            <BackgroundInsets>
+                <AbsInset left="4" right="4" top="4" bottom="4"/>
+            </BackgroundInsets>
+        </Backdrop>
         <Layers>
             <Layer level="BACKGROUND">
-                <Texture atlas="ChallengeMode-guild-background" setAllPoints="true" alpha="0.4"/>
+                <Texture parentKey="Background" atlas="ChallengeMode-guild-background" setAllPoints="true" alpha="0.5" hidden="true" />
             </Layer>
             <Layer level="ARTWORK">
                 <FontString parentKey="Title" inherits="GameFontNormalTiny2" justifyH="CENTER">
                     <Anchors>
-                        <Anchor point="TOPLEFT" x="5" y="-4" />
+                        <Anchor point="TOPLEFT" x="10" y="-8" />
                     </Anchors>
                     <Color r="1.0" g="0.85" b="0.0"/>
                     <Shadow>
@@ -45,7 +56,7 @@
                 </FontString>
                 <FontString parentKey="SubTitle" inherits="GameFontNormalTiny2" justifyH="CENTER">
                     <Anchors>
-                        <Anchor point="TOPLEFT" x="5" y="-15" />
+                        <Anchor point="TOPLEFT" x="10" y="-18" />
                     </Anchors>
                     <Color r="1.0" g="0.85" b="0.0" a="0.8" />
                     <Shadow>
@@ -77,12 +88,12 @@
             </Frame>
             <Frame inherits="RaiderIO_GuildBestRunTemplate" hidden="true">
                 <Anchors>
-                    <Anchor point="TOPLEFT" relativeKey="$parent.Title" relativePoint="BOTTOMLEFT" y="-14"/>
+                    <Anchor point="TOPLEFT" relativeKey="$parent.Title" relativePoint="BOTTOMLEFT" y="-13"/>
                 </Anchors>
             </Frame>
             <CheckButton parentKey="SwitchGuildBest" inherits="UICheckButtonTemplate" mixin="RaiderIO_SwitchGuildBestMixin">
                 <Anchors>
-                    <Anchor point="BOTTOMLEFT" relativeKey="$parent" relativePoint="BOTTOMLEFT" x="3" />
+                    <Anchor point="BOTTOMLEFT" relativeKey="$parent" relativePoint="BOTTOMLEFT" x="8" y="5" />
                 </Anchors>
                 <Scripts>
                     <OnLoad method="OnLoad"/>
@@ -96,6 +107,7 @@
         </Frames>
         <Scripts>
             <OnLoad method="OnLoad"/>
+            <OnMouseWheel method="OnMouseWheel"/>
         </Scripts>
     </Frame>
 </Ui>

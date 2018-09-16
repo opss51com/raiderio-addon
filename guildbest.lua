@@ -3,6 +3,12 @@ local addonName, ns = ...
 -- constants
 local L = ns.L
 
+-- max visible runs
+local MAX_VISIBLE_RUNS = 5
+
+-- mousewheel offset
+local MW_OFFSET = 0
+
 -- utility functions
 local GetGuildFullName
 local GetGuildLeaders
@@ -121,7 +127,7 @@ RaiderIO_GuildBestMixin = {}
 function RaiderIO_GuildBestMixin:OnLoad()
 	-- namespace reference
 	ns.GUILD_BEST_FRAME = self
-	-- make it tiny bit larger
+	-- make it fit the scale of the parent
 	self:SetScale(1.2)
 	-- prepare to be shown later
 	self:Reset()
@@ -129,16 +135,40 @@ function RaiderIO_GuildBestMixin:OnLoad()
 	self.Title:SetText(L.GUILD_BEST_TITLE)
 end
 
+function RaiderIO_GuildBestMixin:OnMouseWheel(delta)
+	MW_OFFSET = max(0, min(MAX_VISIBLE_RUNS, delta > 0 and -1 or 1))
+	self:Refresh()
+end
+
 function RaiderIO_GuildBestMixin:Refresh()
 	if not ChallengesFrame then self:Reset() self:Hide() return end
 	local guildFullName = GetGuildFullName("player")
 	if not guildFullName then self:Reset() self:Hide() return end
 	self:SetParent(ChallengesFrame)
-	self:ClearAllPoints()
-	self:SetPoint("BOTTOMLEFT", ChallengesFrame.WeeklyInfo.Child.SeasonBest, "TOPLEFT", 0, 0)
-	self:SetFrameStrata("HIGH")
-	self:SetUp(guildFullName)
+	local numRuns = self:SetUp(guildFullName)
+	-- anchor and appearance logic
+	if false and ns.DEBUG_MODE then
+		-- debug and test it showing outside bottom right (below the profile tooltip)
+		self.Background:Hide()
+		GameTooltip_SetBackdropStyle(self, GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
+		self:ClearAllPoints()
+		self:SetPoint("BOTTOMLEFT", ChallengesFrame, "BOTTOMRIGHT", 0, 0)
+	else
+		-- show inside the frame either top right or bottom left
+		self.Background:Show()
+		self:SetFrameLevel(10)
+		self:SetBackdropBorderColor(0, 0, 0, 0)
+		self:SetBackdropColor(0, 0, 0, 0)
+		self:ClearAllPoints()
+		if IsAddOnLoaded("AngryKeystones") then
+			self:SetPoint("TOPRIGHT", ChallengesFrame, "TOPRIGHT", -6, -18)
+		else
+			self:SetPoint("BOTTOMLEFT", ChallengesFrame.DungeonIcons[1], "TOPLEFT", 2, 12)
+		end
+	end
+	-- show the frame and enable mousewheel if we have more runs than we can show
 	self:Show()
+	self:EnableMouseWheel(true) -- numRuns > MAX_VISIBLE_RUNS
 end
 
 function RaiderIO_GuildBestMixin:SwitchBestRun()
@@ -168,18 +198,37 @@ function RaiderIO_GuildBestMixin:SetUp(guildFullName)
 
 	if not self.bestRuns or not self.bestRuns[1] then
 		self.GuildBestNoRun:Show()
-		return
+		self:SetHeight(35 + 15 + (self.SwitchGuildBest:IsShown() and self.SwitchGuildBest:GetHeight() or 0))
+		return 0
 	end
 
-	for i = 1, #self.bestRuns do
+	local numRuns = #self.bestRuns
+
+	if numRuns <= MAX_VISIBLE_RUNS then
+		MW_OFFSET = 0
+	end
+
+	for i = 1, min(numRuns, MAX_VISIBLE_RUNS) do
 		local frame = self.GuildBests[i]
 		if not frame then
 			frame = CreateFrame("Frame", nil, ns.GUILD_BEST_FRAME, "RaiderIO_GuildBestRunTemplate")
 			frame:SetPoint("TOP", self.GuildBests[i-1], "BOTTOM")
 		end
-		frame:SetUp(self.bestRuns[i])
-		frame:Show()
+		frame:SetUp(self.bestRuns[i + MW_OFFSET])
 	end
+
+	-- update mouse focus after potential scrolling
+	if self:IsMouseOver() then
+		local focus = GetMouseFocus()
+		if focus and focus ~= GameTooltip:GetOwner() and type(focus.OnEnter) == "function" then
+			focus:OnEnter()
+		end
+	end
+
+	-- resize the height to fit the contents
+	self:SetHeight(35 + (numRuns > 0 and numRuns * self.GuildBests[1]:GetHeight() or 0) + (self.SwitchGuildBest:IsShown() and self.SwitchGuildBest:GetHeight() or 0))
+
+	return numRuns
 end
 
 function RaiderIO_GuildBestMixin:Reset()
@@ -210,12 +259,17 @@ RaiderIO_GuildBestRunMixin = {}
 
 function RaiderIO_GuildBestRunMixin:SetUp(runInfo)
 	self.runInfo = runInfo
+	if not runInfo then
+		self:Hide()
+		return
+	end
 	self.CharacterName:SetText(ns.GetDungeonWithData("id", self.runInfo.zone_id).shortNameLocale)
 	self.Level:SetTextColor(1, 1, 1)
 	if self.runInfo.clear_time and self.runInfo.upgrades == 0 then
 		self.Level:SetTextColor(.62, .62, .62)
 	end
 	self.Level:SetText(ns.GetStarsForUpgrades(self.runInfo.upgrades) .. self.runInfo.level)
+	self:Show()
 end
 
 function RaiderIO_GuildBestRunMixin:OnEnter()

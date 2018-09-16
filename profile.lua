@@ -29,6 +29,9 @@ do
 		p.point, p.x, p.y = point, x, y
 		ns.addonConfig.profilePoint = p
 	end)
+	ProfileTooltip:SetScript("OnShow", function()
+		GameTooltip_SetBackdropStyle(ProfileTooltip, GAME_TOOLTIP_BACKDROP_STYLE_DEFAULT)
+	end)
 end
 
 local IsFallbackAnchorShown
