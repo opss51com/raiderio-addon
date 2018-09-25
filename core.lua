@@ -243,7 +243,6 @@ local GetNameAndRealm
 local GetFaction
 local IsUnitMaxLevel
 local GetWeeklyAffix
-local GetAverageScore
 local GetStarsForUpgrades
 local GetFormattedScore
 local GetFormattedRunCount
@@ -450,13 +449,6 @@ do
 		local diff = difftime(timestamp, timestampWeeklyReset)
 		local index = floor(diff / 604800) % #KEYSTONE_AFFIX_SCHEDULE + 1
 		return KEYSTONE_AFFIX_SCHEDULE[index]
-	end
-
-	function GetAverageScore(level)
-		if CONST_AVERAGE_SCORE and CONST_AVERAGE_SCORE[level] then
-			return CONST_AVERAGE_SCORE[level]
-		end
-		return nil
 	end
 
 	function GetStarsForUpgrades(upgrades, skipPadding)
@@ -2125,7 +2117,13 @@ do
 			tooltip:AddLine(" ")
 			tooltip:AddDoubleLine(L.RAIDERIO_MP_BASE_SCORE, baseScore, 1, 0.85, 0, 1, 1, 1)
 
-			-- TODO: AppendAveragePlayerScore(tooltip, lvl)
+			if ns.addonConfig.showAverageScore then
+				local avgScore = CONST_AVERAGE_SCORE[lvl]
+				if avgScore then
+					tooltip:AddDoubleLine(format(L.RAIDERIO_AVERAGE_PLAYER_SCORE, lvl), avgScore, 1, 1, 1, GetScoreColor(avgScore))
+				end
+			end
+
 			if not inst then tooltip:Show() return end
 
 			local index = KEYSTONE_INST_TO_DUNGEONID[inst]
