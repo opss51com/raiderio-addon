@@ -55,7 +55,7 @@ ns.scoreTiers = {
 	[53] = { ["score"] = 800, ["color"] = { 0.83, 1.00, 0.76 } },		-- |cff#d4ffc3800+|r
 	[54] = { ["score"] = 700, ["color"] = { 0.89, 1.00, 0.84 } },		-- |cff#e3ffd7700+|r
 	[55] = { ["score"] = 600, ["color"] = { 0.95, 1.00, 0.92 } },		-- |cff#f1ffeb600+|r
-	[56] = { ["score"] = 500, ["color"] = { 1.00, 1.00, 1.00 } },		-- |cff#ffffff500+|r
+	[56] = { ["score"] = 200, ["color"] = { 1.00, 1.00, 1.00 } },		-- |cff#ffffff500+|r
 }
 
 
@@ -82,7 +82,7 @@ ns.scoreTiersSimple = {
 		["quality"] = 2
 	},
 	[6] = {
-		["score"] = 500,
+		["score"] = 200,
 		["quality"] = 1
 	}
 }

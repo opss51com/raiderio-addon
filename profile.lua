@@ -116,14 +116,10 @@ do
 			local colorDungeonLevel = COLOR_WHITE
 			local keyLevel = dungeon.keyLevel
 			if keyLevel ~= 0 then
-				if profile.isEnhanced then
-					if dungeon.upgrades == 0 then
-						colorDungeonLevel = COLOR_GREY
-					end
-					keyLevel = ns.GetStarsForUpgrades(dungeon.upgrades) .. keyLevel
-				else
-					keyLevel = "+" .. keyLevel
+				if dungeon.upgrades == 0 then
+					colorDungeonLevel = COLOR_GREY
 				end
+				keyLevel = ns.GetStarsForUpgrades(dungeon.upgrades) .. keyLevel
 			else
 				keyLevel = "-"
 				colorDungeonLevel = COLOR_GREY

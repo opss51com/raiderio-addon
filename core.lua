@@ -18,6 +18,7 @@ local bxor = bit.bxor
 local PAYLOAD_BITS = 13
 local PAYLOAD_MASK = lshift(1, PAYLOAD_BITS) - 1
 local LOOKUP_MAX_SIZE = floor(2^18-1)
+local CONST_COMPLETED_FROM_ACHIEVEMENT_VALUE = 63
 
 -- session
 local uiHooks = {}
@@ -232,6 +233,7 @@ end
 -- utility functions
 local RoundNumber
 local CompareDungeon
+local DecodeEventCount
 local GetDungeonWithData
 local GetTimezoneOffset
 local GetRegion
@@ -259,6 +261,17 @@ do
 			if CONST_DUNGEONS[i][dataName] == dataValue then
 				return CONST_DUNGEONS[i]
 			end
+		end
+	end
+
+	-- takes a number indicating how many runs were done and decompresses it
+	function DecodeEventCount(count)
+		if count <= 10 then
+			return count, false
+		elseif count == CONST_COMPLETED_FROM_ACHIEVEMENT_VALUE then
+			return 0, true
+		else
+			return 10 + (count - 10) * 5, false
 		end
 	end
 
@@ -491,18 +504,6 @@ local GetScoreColor
 local GetPlayerProfile
 local HasPlayerProfile
 do
-	-- unpack the payload
-	local function UnpackPayload(data)
-		-- 4294967296 == (1 << 32). Meaning, shift to get the hi-word.
-		-- WoW lua bit operators seem to only work on the lo-word (?)
-		local hiword = data / 4294967296
-		return
-			band(data, PAYLOAD_MASK),
-			band(rshift(data, PAYLOAD_BITS), PAYLOAD_MASK),
-			band(hiword, PAYLOAD_MASK),
-			band(rshift(hiword, PAYLOAD_BITS), PAYLOAD_MASK)
-	end
-
 	-- search for the index of a name in the given sorted list
 	local function BinarySearchForName(list, name, startIndex, endIndex)
 		local minIndex = startIndex
@@ -582,12 +583,28 @@ do
 		lo, hi = Split64BitNumber(data2)
 		offset = 0
 
+		-- since we do not store score in addon, we need an explicit value indicating which dungeon was the best run
+		-- note: stored as zero-based, so offset it here on load
+		results.maxDungeonIndex = 1 + ReadBits(lo, hi, offset, 4)
+		offset = offset + 4
+
 		local dungeonIndex = 1
 		results.dungeons = {}
-		for i = 1, 10 do
+		results.dungeonUpgrades = {}
+		results.dungeonTimes = {}
+
+		for i = 1, 7 do
 			results.dungeons[dungeonIndex] = ReadBits(lo, hi, offset, 5)
-			dungeonIndex = dungeonIndex + 1
 			offset = offset + 5
+
+			results.dungeonUpgrades[dungeonIndex] = ReadBits(lo, hi, offset, 2)
+			offset = offset + 2
+
+			-- this is just set so that dungeons will be sorted by key level and number of stars.
+			-- it may be overridden by client data.
+			results.dungeonTimes[dungeonIndex] = 3 - results.dungeonUpgrades[dungeonIndex]
+
+			dungeonIndex = dungeonIndex + 1
 		end
 
 		--
@@ -599,23 +616,34 @@ do
 		results.dpsScore = ReadBits(lo, hi, offset, PAYLOAD_BITS)
 		offset = offset + PAYLOAD_BITS
 
-		results.totalRuns = ReadBits(lo, hi, offset, 11)
-		offset = offset + 11
+		for i = dungeonIndex, 10 do
+			results.dungeons[dungeonIndex] = ReadBits(lo, hi, offset, 5)
+			offset = offset + 5
 
-		results.keystoneTenPlus = ReadBits(lo, hi, offset, 11)
-		offset = offset + 11
+			results.dungeonUpgrades[dungeonIndex] = ReadBits(lo, hi, offset, 2)
+			offset = offset + 2
 
-		results.keystoneFifteenPlus = ReadBits(lo, hi, offset, 11)
-		offset = offset + 11
+			-- this is just set so that dungeons will be sorted by key level and number of stars.
+			-- it may be overridden by client data.
+			results.dungeonTimes[dungeonIndex] = 3 - results.dungeonUpgrades[dungeonIndex]
 
-		-- since we do not store score in addon, we need an explicit value indicating which dungeon was the best run
-		-- note: stored as zero-based, so offset it here on load
-		results.maxDungeonIndex = 1 + ReadBits(lo, hi, offset, 4)
+			dungeonIndex = dungeonIndex + 1
+		end
+
+		results.keystoneFivePlus, results.isFivePlusAchievement = DecodeEventCount(ReadBits(lo, hi, offset, 6))
+		offset = offset + 6
+
+		results.keystoneTenPlus, results.isTenPlusAchievement = DecodeEventCount(ReadBits(lo, hi, offset, 6))
+		offset = offset + 6
+
+		results.keystoneFifteenPlus, results.isFifteenPlusAchievement = DecodeEventCount(ReadBits(lo, hi, offset, 6))
+		offset = offset + 6
+
+		-- Post processing
 		if results.maxDungeonIndex > #results.dungeons then
 			results.maxDungeonIndex = 1
 		end
 		results.maxDungeonLevel = results.dungeons[results.maxDungeonIndex]
-		offset = offset + 4
 
 		return results
 	end
@@ -654,12 +682,17 @@ do
 			tankScore = payload.tankScore,
 			-- dungeons they have completed
 			dungeons = payload.dungeons,
+			dungeonUpgrades = payload.dungeonUpgrades,
+			dungeonTimes = payload.dungeonTimes,
 			-- best dungeon completed (or highest 10/15 achievement)
 			maxDungeon = CONST_DUNGEONS[payload.maxDungeonIndex],
 			maxDungeonLevel = payload.maxDungeonLevel,
+			keystoneFivePlus = payload.keystoneFivePlus,
 			keystoneTenPlus = payload.keystoneTenPlus,
 			keystoneFifteenPlus = payload.keystoneFifteenPlus,
-			totalRuns = payload.totalRuns,
+			isFivePlusAchievement = payload.isFivePlusAchievement,
+			isTenPlusAchievement = payload.isTenPlusAchievement,
+			isFifteenPlusAchievement = payload.isFifteenPlusAchievement,
 		}
 
 		-- client related data populates these fields
@@ -669,8 +702,6 @@ do
 			cache.isEnhanced = false
 
 			-- number of keystone upgrades per dungeon
-			cache.dungeonUpgrades = {}
-			cache.dungeonTimes = {}
 			cache.maxDungeonUpgrades = 0
 
 			-- if character exists in the clientCharacters list then override some data with higher precision
@@ -932,24 +963,25 @@ do
 						best.dungeon, best.level = nil, 0
 					end
 
-					-- Jah: Disabled for now, as everyone who did a +15 in Legion will have one in BFA since we are sharing achievements
-					--[[
-					if profile.keystoneFifteenPlus > 0 then
+					if profile.isFifteenPlusAchievement then
 						if profile.maxDungeonLevel < 15 then
 							best.text = L.KEYSTONE_COMPLETED_15
 						end
-					elseif profile.keystoneTenPlus > 0 then
+					elseif profile.isTenPlusAchievement then
 						if profile.maxDungeonLevel < 10 then
 							best.text = L.KEYSTONE_COMPLETED_10
 						end
+					elseif profile.isFivePlusAchievement then
+						if profile.maxDungeonLevel < 5 then
+							best.text = L.KEYSTONE_COMPLETED_5
+						end
 					end
-					--]]
 
 					if best.dungeon and best.dungeon == profile.maxDungeon then
-						output[i] = {L.BEST_RUN, "+" .. best.level .. " " .. best.dungeon.shortNameLocale, 0, 1, 0, GetScoreColor(profile.allScore)}
+						output[i] = {L.BEST_RUN, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 0, 1, 0, GetScoreColor(profile.allScore)}
 						i = i + 1
 					elseif best.dungeon and best.level > 0 then
-						output[i] = {L.BEST_RUN, "+" .. best.level .. " " .. best.dungeon.shortNameLocale, 1, 1, 1, GetScoreColor(profile.allScore)}
+						output[i] = {L.BEST_RUN, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 1, 1, 1, GetScoreColor(profile.allScore)}
 						i = i + 1
 					elseif best.text then
 						output[i] = {L.BEST_RUN, best.text, 1, 1, 1, GetScoreColor(profile.allScore)}
@@ -957,17 +989,17 @@ do
 					end
 
 					if profile.keystoneFifteenPlus > 0 then
-						output[i] = {L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
+						output[i] = {L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus) .. (profile.keystoneFifteenPlus > 10 and '+' or ''), 1, 1, 1, GetScoreColor(profile.allScore)}
 						i = i + 1
 					end
 
 					if profile.keystoneTenPlus > 0 and (profile.keystoneFifteenPlus == 0 or isModKeyDown or isModKeyDownSticky) then
-						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus), 1, 1, 1, GetScoreColor(profile.allScore)}
+						output[i] = {L.TIMED_10_RUNS, GetFormattedRunCount(profile.keystoneTenPlus) .. (profile.keystoneTenPlus > 10 and '+' or ''), 1, 1, 1, GetScoreColor(profile.allScore)}
 						i = i + 1
 					end
 
-					if profile.totalRuns > 0 and addon:IsModifierKeyDown() then
-						output[i] = {L.TOTAL_RUNS, GetFormattedRunCount(profile.totalRuns), 1, 1, 1, GetScoreColor(profile.allScore)}
+					if profile.keystoneFivePlus > 0 and (profile.keystoneTenPlus == 0 or isModKeyDown or isModKeyDownSticky) then
+						output[i] = {L.TIMED_5_RUNS, GetFormattedRunCount(profile.keystoneFivePlus) .. (profile.keystoneFivePlus > 10 and '+' or ''), 1, 1, 1, GetScoreColor(profile.allScore)}
 						i = i + 1
 					end
 				end
