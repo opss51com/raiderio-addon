@@ -901,7 +901,8 @@ do
 				end
 
 				do
-					local best = { dungeon = nil, level = 0, text = nil }
+					local best = { dungeon = nil, level = 0, text = nil }			-- dungeon best
+					local overallBest = { dungeon = profile.maxDungeon, level = profile.dungeons[profile.maxDungeon.index] }	-- overall best
 
 					if addLFD then
 						local hasArgs, dungeonIndex = ...
@@ -977,14 +978,21 @@ do
 						end
 					end
 
-					if best.dungeon and best.dungeon == profile.maxDungeon then
-						output[i] = {L.BEST_RUN, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 0, 1, 0, GetScoreColor(profile.allScore)}
-						i = i + 1
-					elseif best.dungeon and best.level > 0 then
-						output[i] = {L.BEST_RUN, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 1, 1, 1, GetScoreColor(profile.allScore)}
-						i = i + 1
+					if best.dungeon then
+						if best.dungeon == profile.maxDungeon then
+							output[i] = {L.BEST_FOR_DUNGEON, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 0, 1, 0, GetScoreColor(profile.allScore)}
+							i = i + 1
+						elseif best.dungeon and best.level > 0 then
+							output[i] = {L.BEST_FOR_DUNGEON, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 1, 1, 1, GetScoreColor(profile.allScore)}
+							i = i + 1
+						end
 					elseif best.text then
 						output[i] = {L.BEST_RUN, best.text, 1, 1, 1, GetScoreColor(profile.allScore)}
+						i = i + 1
+					end
+
+					if not best.text and (not best.dungeon or overallBest.dungeon.index ~= best.dungeon.index) and overallBest.level > 0 then
+						output[i] = {L.BEST_RUN, GetStarsForUpgrades(profile.dungeonUpgrades[overallBest.dungeon.index]) .. overallBest.level .. " " .. overallBest.dungeon.shortNameLocale, 1, 1, 1, GetScoreColor(profile.allScore)}
 						i = i + 1
 					end
 
