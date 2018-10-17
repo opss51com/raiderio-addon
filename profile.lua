@@ -237,6 +237,9 @@ function ProfileTooltip.ToggleLock()
 end
 
 function ProfileTooltip.ShowProfile(unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, anchorFrame, frameStrata, lfdActivityID, keystoneLevel)
+	if not ns.addonConfig.showRaiderIOProfile then
+		return
+	end
 	if anchorFrame then
 		HookFrame(anchorFrame)
 	end
