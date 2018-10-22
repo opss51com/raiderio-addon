@@ -23,6 +23,8 @@ local addonConfig = {
 	showClientGuildBest = true,
 	displayWeeklyGuildBest = false,
 	showRaiderIOProfile = true,
+	hidePersonalRaiderIOProfile = false,
+	showRaidEncountersInProfile = true,
 	enableProfileModifier = true,
 	inverseProfileModifier = false,
 	positionProfileAuto = true,
@@ -377,7 +379,7 @@ do
 			local header = config:CreateHeadline(L.RAIDERIO_MYTHIC_OPTIONS .. "\nVersion: " .. tostring(GetAddOnMetadata(addonName, "Version")), configHeaderFrame)
 			header.text:SetFont(header.text:GetFont(), 16, "OUTLINE")
 
-			config:CreateHeadline(L.MYTHIC_PLUS_SCORES)
+			config:CreateHeadline(L.CONFIG_SHOW_TOOLTIPS_HEADER)
 			config:CreateOptionToggle(L.SHOW_ON_PLAYER_UNITS, L.SHOW_ON_PLAYER_UNITS_DESC, "enableUnitTooltips")
 			config:CreateOptionToggle(L.SHOW_IN_LFD, L.SHOW_IN_LFD_DESC, "enableLFGTooltips")
 			config:CreateOptionToggle(L.SHOW_IN_FRIENDS, L.SHOW_IN_FRIENDS_DESC, "enableFriendsTooltips")
@@ -398,6 +400,8 @@ do
 			config:CreatePadding()
 			config:CreateHeadline(L.TOOLTIP_PROFILE)
 			config:CreateOptionToggle(L.SHOW_RAIDERIO_PROFILE, L.SHOW_RAIDERIO_PROFILE_DESC, "showRaiderIOProfile")
+			config:CreateOptionToggle(L.HIDE_OWN_PROFILE, L.HIDE_OWN_PROFILE_DESC, "hidePersonalRaiderIOProfile")
+			config:CreateOptionToggle(L.SHOW_RAID_ENCOUNTERS_IN_PROFILE, L.SHOW_RAID_ENCOUNTERS_IN_PROFILE_DESC, "showRaidEncountersInProfile")
 			config:CreateOptionToggle(L.SHOW_LEADER_PROFILE, L.SHOW_LEADER_PROFILE_DESC, "enableProfileModifier")
 			config:CreateOptionToggle(L.INVERSE_PROFILE_MODIFIER, L.INVERSE_PROFILE_MODIFIER_DESC, "inverseProfileModifier")
 			config:CreateOptionToggle(L.ENABLE_AUTO_FRAME_POSITION, L.ENABLE_AUTO_FRAME_POSITION_DESC, "positionProfileAuto")
@@ -413,19 +417,20 @@ do
 			config:CreateOptionToggle(L.ALLOW_ON_PLAYER_UNITS, L.ALLOW_ON_PLAYER_UNITS_DESC, "showDropDownCopyURL")
 			config:CreateOptionToggle(L.ALLOW_IN_LFD, L.ALLOW_IN_LFD_DESC, "enableLFGDropdown")
 
+			local factionHeaderModules = {}
 			config:CreatePadding()
 			config:CreateHeadline(L.MYTHIC_PLUS_DB_MODULES)
-			local module1 = config:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_A", "RaiderIO_DB_US_H")
+			factionHeaderModules[#factionHeaderModules + 1] = config:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_A", "RaiderIO_DB_US_H")
 			config:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_A", "RaiderIO_DB_EU_H")
 			config:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_A", "RaiderIO_DB_KR_H")
 			config:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_A", "RaiderIO_DB_TW_H")
 
-			--config:CreatePadding()
-			--config:CreateHeadline(L.RAIDING_DB_MODULES)
-			--local module1 = config:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_A_R", "RaiderIO_DB_US_H_R")
-			--config:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_A_R", "RaiderIO_DB_EU_H_R")
-			--config:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_A_R", "RaiderIO_DB_KR_H_R")
-			--config:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_A_R", "RaiderIO_DB_TW_H_R")
+			config:CreatePadding()
+			config:CreateHeadline(L.RAIDING_DB_MODULES)
+			factionHeaderModules[#factionHeaderModules + 1] = config:CreateModuleToggle(L.MODULE_AMERICAS, "RaiderIO_DB_US_A_R", "RaiderIO_DB_US_H_R")
+			config:CreateModuleToggle(L.MODULE_EUROPE, "RaiderIO_DB_EU_A_R", "RaiderIO_DB_EU_H_R")
+			config:CreateModuleToggle(L.MODULE_KOREA, "RaiderIO_DB_KR_A_R", "RaiderIO_DB_KR_H_R")
+			config:CreateModuleToggle(L.MODULE_TAIWAN, "RaiderIO_DB_TW_A_R", "RaiderIO_DB_TW_H_R")
 
 			-- add save button and cancel buttons
 			local buttons = config:CreateWidget("Frame", 4, configButtonFrame)
@@ -450,7 +455,7 @@ do
 
 			-- adjust frame height dynamically
 			local children = {configFrame:GetChildren()}
-			local height = 50
+			local height = 70
 			for i = 1, #children do
 				height = height + children[i]:GetHeight() + 2
 			end
@@ -470,14 +475,18 @@ do
 			configParentFrame:SetWidth(160 + maxWidth)
 
 			-- add faction headers over the first module
-			local af = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_02:0:0:0:0:16:16:4:12:4:12|t")
-			af:ClearAllPoints()
-			af:SetPoint("BOTTOM", module1.checkButton2, "TOP", 2, -5)
-			af:SetSize(32, 32)
-			local hf = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_01:0:0:0:0:16:16:4:12:4:12|t")
-			hf:ClearAllPoints()
-			hf:SetPoint("BOTTOM", module1.checkButton, "TOP", 2, -5)
-			hf:SetSize(32, 32)
+			for i = 1, #factionHeaderModules do
+				local module = factionHeaderModules[i]
+				local af = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_02:0:0:0:0:16:16:4:12:4:12|t")
+				af:ClearAllPoints()
+				af:SetPoint("BOTTOM", module.checkButton2, "TOP", 2, -5)
+				af:SetSize(32, 32)
+
+				local hf = config:CreateHeadline("|TInterface\\Icons\\inv_bannerpvp_01:0:0:0:0:16:16:4:12:4:12|t")
+				hf:ClearAllPoints()
+				hf:SetPoint("BOTTOM", module.checkButton, "TOP", 2, -5)
+				hf:SetSize(32, 32)
+			end
 		end
 
 		-- add the category and a shortcut button in the interface panel options
