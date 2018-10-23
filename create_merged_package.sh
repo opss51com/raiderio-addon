@@ -15,7 +15,9 @@ echo "Downloading latest zip to base off of..."
 wget -O latest.zip https://wow.curseforge.com/projects/raiderio/files/latest
 
 rm -rf addon
-unzip -d addon latest.zip
+mkdir addon
+find ../db -type d -name 'RaiderIO_DB_*' -exec cp -av {} addon \;
+unzip -o -d addon latest.zip
 find addon -name '*.xml' -exec rm -f {} \;
 echo "Manual build $NEW_VERSION" > addon/CHANGES.txt
 

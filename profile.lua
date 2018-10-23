@@ -67,69 +67,126 @@ do
 			end
 		end
 		-- do not show our own profile if the user doesn't want to see it
-		if not ns.addonConfig.showRaiderIOProfile and unitOrNameOrNameAndRealm == "player" then
+		if ns.addonConfig.hidePersonalRaiderIOProfile and unitOrNameOrNameAndRealm == "player" then
 			return
 		end
-		local output, hasProfile = ns.GetPlayerProfile(bit.bor(ns.ProfileOutput.MYTHICPLUS, ns.ProfileOutput.TOOLTIP, ns.ProfileOutput.MOD_KEY_DOWN_STICKY), unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, true, lfdActivityID, keystoneLevel)
-		if not hasProfile then return end
-		local profile = output.profile
-		if not profile then return end
+
 		local isPlayer = unitOrNameOrNameAndRealm == "player"
-		-- the focused dungeon based on LFD activityID
-		local dungeon
-		if lfdActivityID then
-			local dungeonID = ns.LFD_ACTIVITYID_TO_DUNGEONID[lfdActivityID]
-			if dungeonID then
-				dungeon = ns.CONST_DUNGEONS[dungeonID]
-			end
-		end
-		local focusOnDungeonIndex = dungeon and dungeon.index or nil
-		-- make a list over the dungeons the profile has done
-		local dungeons = {}
-		for dungeonIndex, keyLevel in ipairs(profile.dungeons) do
-			local d = ns.CONST_DUNGEONS[dungeonIndex]
-			dungeons[dungeonIndex] = {
-				index = dungeonIndex,
-				dungeon = d,
-				shortName = d.shortNameLocale,
-				keyLevel = keyLevel,
-				upgrades = profile.dungeonUpgrades[dungeonIndex] or 0,
-				fractionalTime = profile.dungeonTimes[dungeonIndex] or 0,
-			}
-		end
-		table.sort(dungeons, ns.CompareDungeon)
-		-- add the tooltip header and regular tooltip lines
-		ProfileTooltip:AddLine(L[isPlayer and "MY_PROFILE_TITLE" or "PLAYER_PROFILE_TITLE"], 1, 0.85, 0, false)
-		for i = 1, output.length do
-			local line = output[i]
-			if type(line) == "table" then
-				ProfileTooltip:AddDoubleLine(line[1], line[2], line[3], line[4], line[5], line[6], line[7], line[8], line[9], line[10])
-			else
-				ProfileTooltip:AddLine(line)
-			end
-		end
-		-- add the dungeons list of the best runs
-		ProfileTooltip:AddLine(" ")
-		ProfileTooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0, false)
-		for i, dungeon in ipairs(dungeons) do
-			local colorDungeonName = COLOR_WHITE
-			local colorDungeonLevel = COLOR_WHITE
-			local keyLevel = dungeon.keyLevel
-			if keyLevel ~= 0 then
-				if dungeon.upgrades == 0 then
-					colorDungeonLevel = COLOR_GREY
+
+		-- mythic plus data
+		local hasMythicPlusProfile = false
+		do
+			local output, hasProfile = ns.GetPlayerProfile(bit.bor(ns.ProfileOutput.MYTHICPLUS, ns.ProfileOutput.TOOLTIP, ns.ProfileOutput.PROFILE, ns.ProfileOutput.MOD_KEY_DOWN_STICKY), unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, true, lfdActivityID, keystoneLevel)
+			local profile = hasProfile and output.profile or nil
+			hasMythicPlusProfile = hasProfile
+			if profile and hasProfile then
+				ProfileTooltip:AddLine(isPlayer and L.MY_PROFILE_TITLE or format("%s: %s", L.MY_PROFILE_TITLE, profile.name), 1, 0.85, 0, false)
+
+				-- the focused dungeon based on LFD activityID
+				local dungeon
+				if lfdActivityID then
+					local dungeonID = ns.LFD_ACTIVITYID_TO_DUNGEONID[lfdActivityID]
+					if dungeonID then
+						dungeon = ns.CONST_DUNGEONS[dungeonID]
+					end
 				end
-				keyLevel = ns.GetStarsForUpgrades(dungeon.upgrades) .. keyLevel
-			else
-				keyLevel = "-"
-				colorDungeonLevel = COLOR_GREY
+				local focusOnDungeonIndex = dungeon and dungeon.index or nil
+				-- make a list over the dungeons the profile has done
+				local dungeons = {}
+				for dungeonIndex, keyLevel in ipairs(profile.dungeons) do
+					local d = ns.CONST_DUNGEONS[dungeonIndex]
+					dungeons[dungeonIndex] = {
+						index = dungeonIndex,
+						dungeon = d,
+						shortName = d.shortNameLocale,
+						keyLevel = keyLevel,
+						upgrades = profile.dungeonUpgrades[dungeonIndex] or 0,
+						fractionalTime = profile.dungeonTimes[dungeonIndex] or 0,
+					}
+				end
+				table.sort(dungeons, ns.CompareDungeon)
+				-- add the tooltip header and regular tooltip lines
+				for i = 1, output.length do
+					local line = output[i]
+					if type(line) == "table" then
+						ProfileTooltip:AddDoubleLine(line[1], line[2], line[3], line[4], line[5], line[6], line[7], line[8], line[9], line[10])
+					else
+						ProfileTooltip:AddLine(line)
+					end
+				end
+				-- add the dungeons list of the best runs
+				ProfileTooltip:AddLine(" ")
+				ProfileTooltip:AddLine(L.PROFILE_BEST_RUNS, 1, 0.85, 0, false)
+				for i, dungeon in ipairs(dungeons) do
+					local colorDungeonName = COLOR_WHITE
+					local colorDungeonLevel = COLOR_WHITE
+					local keyLevel = dungeon.keyLevel
+					if keyLevel ~= 0 then
+						if dungeon.upgrades == 0 then
+							colorDungeonLevel = COLOR_GREY
+						end
+						keyLevel = ns.GetStarsForUpgrades(dungeon.upgrades) .. keyLevel
+					else
+						keyLevel = "-"
+						colorDungeonLevel = COLOR_GREY
+					end
+					if focusOnDungeonIndex == dungeon.index then
+						colorDungeonName = COLOR_GREEN
+						colorDungeonLevel = COLOR_GREEN
+					end
+					ProfileTooltip:AddDoubleLine(dungeon.shortName, keyLevel, colorDungeonName.r, colorDungeonName.g, colorDungeonName.b, colorDungeonLevel.r, colorDungeonLevel.g, colorDungeonLevel.b)
+				end
 			end
-			if focusOnDungeonIndex == dungeon.index then
-				colorDungeonName = COLOR_GREEN
-				colorDungeonLevel = COLOR_GREEN
-			end
-			ProfileTooltip:AddDoubleLine(dungeon.shortName, keyLevel, colorDungeonName.r, colorDungeonName.g, colorDungeonName.b, colorDungeonLevel.r, colorDungeonLevel.g, colorDungeonLevel.b)
 		end
+
+		-- if wanting to show raid data
+		if ns.addonConfig.showRaidEncountersInProfile then
+			local output, hasProfile = ns.GetPlayerProfile(bit.bor(ns.ProfileOutput.RAIDING, ns.ProfileOutput.TOOLTIP, ns.ProfileOutput.MOD_KEY_DOWN_STICKY), unitOrNameOrNameAndRealm, realmOrNil, factionOrNil, true, lfdActivityID, keystoneLevel)
+			local profile = hasProfile and output.profile or nil
+			if profile and hasProfile then
+				if hasMythicPlusProfile then
+					ProfileTooltip:AddLine(" ")
+				else
+					ProfileTooltip:AddLine(isPlayer and L.MY_PROFILE_TITLE or format("%s: %s", L.MY_PROFILE_TITLE, profile.name), 1, 0.85, 0, false)
+				end
+
+				ProfileTooltip:AddLine(L.RAID_ENCOUNTERS_DEFEATED_TITLE, 1, 0.85, 0, false)
+
+				-- only show breakdown for their top progress
+				for bossIndex = 1, profile.currentRaid.bossCount do
+					local progFound = false
+					for progIndex = 1, #profile.progress do
+						if not progFound then
+							local prog = profile.progress[progIndex]
+							if prog.killsPerBoss[bossIndex] > 0 then
+								progFound = true
+								ProfileTooltip:AddDoubleLine(
+									format("|c%s%s|r %s",
+										ns.GetRaidDifficultyColor(prog.difficulty)[4],
+										ns.RAID_DIFFICULTY_SUFFIXES[prog.difficulty],
+										L[format("RAID_BOSS_%s_%d", profile.currentRaid.shortName, bossIndex)]
+									),
+									prog.killsPerBoss[bossIndex],
+									1, 1, 1,
+									1, 1, 1
+								)
+							end
+						end
+					end
+
+					if not progFound then
+						ProfileTooltip:AddDoubleLine(
+							L[format("RAID_BOSS_%s_%d", profile.currentRaid.shortName, bossIndex)],
+							"-",
+							0.5, 0.5, 0.5,
+							0.5, 0.5, 0.5
+						)
+					end
+				end
+			end
+		end
+
+
 		-- TODO: this working right?
 		if ns.OUTDATED_DAYS[ns.CONST_PROVIDER_DATA_MYTHICPLUS] and ns.OUTDATED_DAYS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction] > 1 then
 			ProfileTooltip:AddLine(" ")
@@ -138,6 +195,7 @@ do
 			ProfileTooltip:AddLine(" ")
 			ProfileTooltip:AddLine(format(L.OUTDATED_DATABASE_HOURS, ns.OUTDATED_HOURS[ns.CONST_PROVIDER_DATA_MYTHICPLUS][profile.faction]), 0.8, 0.8, 0.8, false)
 		end
+
 		return true
 	end
 

@@ -1,6 +1,6 @@
 ## Interface: 80000
-## Title: Raider.IO Mythic Plus
-## Notes: Shows Raider.IO Mythic+ Scores in-game. Make sure to load one or more region DB.
+## Title: Raider.IO Mythic Plus and Raiding
+## Notes: Shows Raider.IO Mythic+ Score and Raid Progress in-game. Make sure to load one or more region DB.
 ## Author: Vladinator (Voidzone-Ravencrest), Aspyr (Aspyrox-Skullcrusher) and Isak (Isak-Sargeras)
 ## Version: 8.0.1 (@project-version@)
 ## SavedVariables: RaiderIO_Config, RaiderIO_LastCharacter
