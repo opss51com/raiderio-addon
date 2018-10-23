@@ -974,8 +974,8 @@ do
 					d = BinarySearchForName(r, name, 2, #r)
 					if d then
 						-- `r[1]` = offset for this realm's characters in lookup table
-						-- `d` = index of found character in realm list. note: this is offsetby one because of r[1]
-						-- `bucketID` is the index in the lookup table that contains that characters data
+						-- `d` = index of found character in realm list. note: this is offset by two because first index in `r` is an offset, and because lua is 1-base.
+						-- `bucketID` = the index in the lookup table that contains that characters data
 						base = r[1] + (d - 2) * numFieldsPerCharacter
 						bucketID = 1 + floor(base / lookupMaxSize)
 						bucket = lu[bucketID]
@@ -1719,11 +1719,11 @@ do
 
 					if dataType == CONST_PROVIDER_DATA_RAIDING then
 						if not dataProviderGroup.currentRaid then
-							dataProviderGroup.currentRaid = dataProviderGroup.currentRaid
+							dataProviderGroup.currentRaid = data.currentRaid
 						end
 
 						if not dataProviderGroup.previousRaid then
-							dataProviderGroup.previousRaid = dataProviderGroup.previousRaid
+							dataProviderGroup.previousRaid = data.previousRaid
 						end
 					end
 				else
@@ -2410,7 +2410,8 @@ do
 	-- Keystone Info
 	uiHooks[#uiHooks + 1] = function()
 		local KEYSTONE_PATTERNS = {
-			"keystone:%d+:(.-):(.-):(.-):(.-):(.-)"
+			"keystone:%d+:(.-):(.-):(.-):(.-):(.-)",
+			"item:158923:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:.-:(.-):(.-):(.-):(.-):(.-):(.-)"
 		}
 		local function SortByLevelDesc(a, b)
 			if a[2] == b[2] then
