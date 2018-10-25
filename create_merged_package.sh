@@ -19,6 +19,7 @@ mkdir addon
 find ../db -type d -name 'RaiderIO_DB_*' -exec cp -av {} addon \;
 unzip -o -d addon latest.zip
 find addon -name '*.xml' -exec rm -f {} \;
+rm -rf addon/RaiderIO/db/RaiderIO_DB_*   # leftovers that could be in config
 echo "Manual build $NEW_VERSION" > addon/CHANGES.txt
 
 echo "Overlaying latest DB..."
