@@ -13,6 +13,7 @@ local addonConfig = {
 	enableWhoMessages = true,
 	enableGuildTooltips = true,
 	enableKeystoneTooltips = true,
+	enableLeaderboardDataInTooltips = true,
 	showMainsScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
