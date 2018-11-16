@@ -40,6 +40,15 @@ local Init
 do
 	local HasConfigUI
 
+	-- Print map info
+	local function PrintMaps()
+		for i = 1, #ns.dungeons do
+			local dgn = ns.dungeons[i]
+			local _, _, dungeonSeconds = C_ChallengeMode.GetMapUIInfo(dgn.keystone_instance)
+			DEFAULT_CHAT_FRAME:AddMessage(format("%s: %d minutes", dgn.shortName, dungeonSeconds / 60))
+		end
+	end
+
 	-- update local reference to the correct savedvariable table
 	local function UpdateVar()
 		if type(_G.RaiderIO_Config) ~= "table" then
@@ -547,6 +556,12 @@ do
 						if ns.EXPORT_JSON then
 							ns.EXPORT_JSON.OpenCopyDialog()
 						end
+						return
+					end
+
+					-- if the keyword "group" is present in the command we show the EXPORT JSON dialog
+					if text:find("[Pp][Rr][Ii][Nn][Tt][Mm][Aa][Pp][Ss]") then
+						PrintMaps()
 						return
 					end
 				end
