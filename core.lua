@@ -1273,13 +1273,10 @@ do
 				end
 			end
 
-			local j = 1
-
 			if addFooter then
 				if IS_DB_OUTDATED[dataType][profile.faction] then
 					output[i] = {format(L.OUTDATED_DATABASE, OUTDATED_DAYS[dataType][profile.faction]), "", 1, 1, 1, 1, 1, 1, false}
 					i = i + 1
-					j = j + 1
 				end
 
 				local t = EGG[profile.region]
@@ -1290,13 +1287,12 @@ do
 						if t then
 							output[i] = {t, "", 0.9, 0.8, 0.5, 1, 1, 1, false}
 							i = i + 1
-							j = j + 1
 						end
 					end
 				end
 			end
 
-			output.length = i - j
+			output.length = i - 1
 
 		end
 
