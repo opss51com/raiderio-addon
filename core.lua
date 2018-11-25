@@ -128,6 +128,8 @@ end
 -- defined constants
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_BATTLE_FOR_AZEROTH]
 local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
+local LEADERBOARD_CAPACITY = 500
+local LEADERBOARD_NEARING_CAPACITY = LEADERBOARD_CAPACITY * 0.75
 local FACTION
 local REGIONS
 local REGIONS_RESET_TIME
@@ -609,9 +611,6 @@ do
 				minRow = row
 			end
 		end
-
-		local LEADERBOARD_CAPACITY = 500
-		local LEADERBOARD_NEARING_CAPACITY = LEADERBOARD_CAPACITY * 0.75
 
 		-- We can’t meaningfully display a minimum if the leaderboard is not yet full,
 		-- since the minimum will always be 2.
