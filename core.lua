@@ -601,8 +601,6 @@ do
 			row.rank = rank
 		end
 
-		table.sort(rows, function(a, b) return a.level < b.level end)
-
 		-- Find lowest rank from collected realms
 		local minRow = nil
 
@@ -614,12 +612,12 @@ do
 
 		-- We can’t meaningfully display a minimum if the leaderboard is not yet full,
 		-- since the minimum will always be 2.
-		local show_level = false
+		local showLevel = false
 		local status
 
 		if minRow.rank == LEADERBOARD_CAPACITY then
 			status = COLOR_RED.."Full"
-			show_level = true
+			showLevel = true
 		elseif minRow.rank >= LEADERBOARD_NEARING_CAPACITY then
 			status = COLOR_ORANGE.."Almost Full"
 		else
@@ -628,7 +626,7 @@ do
 
 		tooltip:AddDoubleLine("M+ Dungeon Leaderboards", status)
 
-		if show_level then
+		if showLevel then
 			local level = tostring(minRow.level)
 			local color = ""
 			if minRow.additional then
