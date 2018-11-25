@@ -616,15 +616,15 @@ do
 		local status
 
 		if minRow.rank == LEADERBOARD_CAPACITY then
-			status = COLOR_RED.."Full"
+			status = COLOR_RED..L.LEADERBOARD_STATUS_FULL
 			showLevel = true
 		elseif minRow.rank >= LEADERBOARD_NEARING_CAPACITY then
-			status = COLOR_ORANGE.."Almost Full"
+			status = COLOR_ORANGE..L.LEADERBOARD_STATUS_ALMOST_FULL
 		else
-			status = COLOR_GREEN.."Open"
+			status = COLOR_GREEN..L.LEADERBOARD_STATUS_OPEN
 		end
 
-		tooltip:AddDoubleLine("M+ Dungeon Leaderboards", status)
+		tooltip:AddDoubleLine(L.LEADERBOARD_TITLE, status)
 
 		if showLevel then
 			local level = tostring(minRow.level)
@@ -634,12 +634,12 @@ do
 				color = COLOR_GREEN
 			end
 
-			tooltip:AddDoubleLine("Party minimum keystone", FormatMinimumKeystone(level, minRow.upgrades, color), 1, 1, 1, 1, 1, 1)
+			tooltip:AddDoubleLine(L.LEADERBOARD_MINIMUM, FormatMinimumKeystone(level, minRow.upgrades, color), 1, 1, 1, 1, 1, 1)
 		end
 
 		if contextLevel then
 			if minRow.rank == LEADERBOARD_CAPACITY or contextLevel < minRow.level then
-				tooltip:AddLine("Keystone Too Low for M+ Leaderboards", 1, 0, 0)
+				tooltip:AddLine(L.LEADERBOARD_KEYSTONE_LOW, 1, 0, 0)
 			end
 		end
 
