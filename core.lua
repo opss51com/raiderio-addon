@@ -605,7 +605,7 @@ do
 		local minRow = nil
 
 		for _, row in ipairs(rows) do
-			if not minRow or row.rank < minRow.rank or row.level < minRow.level then
+			if not minRow or row.rank < minRow.rank or row.level < minRow.level or (row.level == minRow.level and row.upgrades < minRow.upgrades) then
 				minRow = row
 			end
 		end
