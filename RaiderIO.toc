@@ -33,6 +33,6 @@ guildbest.lua
 guildbest.xml
 exportjson.lua
 
-db/db_leaderboards.lua
 db/db_client_characters.lua
 db/db_client_guilds.lua
+db/db_client_realm_leaderboards.lua
