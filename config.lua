@@ -13,6 +13,7 @@ local addonConfig = {
 	enableWhoMessages = true,
 	enableGuildTooltips = true,
 	enableKeystoneTooltips = true,
+	enableLeaderboardDataInTooltips = true,
 	showMainsScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
@@ -405,6 +406,7 @@ do
 			config:CreateOptionToggle(L.SHOW_SCORE_IN_COMBAT, L.SHOW_SCORE_IN_COMBAT_DESC, "showScoreInCombat")
 			config:CreateOptionToggle(L.SHOW_KEYSTONE_INFO, L.SHOW_KEYSTONE_INFO_DESC, "enableKeystoneTooltips")
 			config:CreateOptionToggle(L.SHOW_AVERAGE_PLAYER_SCORE_INFO, L.SHOW_AVERAGE_PLAYER_SCORE_INFO_DESC, "showAverageScore")
+			config:CreateOptionToggle(L.SHOW_LEADERBOARD_INFO, L.SHOW_LEADERBOARD_INFO_DESC, "enableLeaderboardDataInTooltips")
 
 			config:CreatePadding()
 			config:CreateHeadline(L.TOOLTIP_PROFILE)

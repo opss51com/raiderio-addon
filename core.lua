@@ -128,6 +128,8 @@ end
 -- defined constants
 local MAX_LEVEL = MAX_PLAYER_LEVEL_TABLE[LE_EXPANSION_BATTLE_FOR_AZEROTH]
 local OUTDATED_SECONDS = 86400 * 3 -- number of seconds before we start warning about outdated data
+local LEADERBOARD_CAPACITY = 500
+local LEADERBOARD_NEARING_CAPACITY = LEADERBOARD_CAPACITY * 0.75
 local FACTION
 local REGIONS
 local REGIONS_RESET_TIME
@@ -535,6 +537,118 @@ do
 		else
 			return count
 		end
+	end
+
+	-- ================
+	-- = Leaderboards =
+	-- ================
+	local function LearderboardRealmData (region, realmName, dungeonId)
+		local realmData = ns.leaderboardData[region][realmName]
+
+		-- Connected realms store the name of another realm
+		-- where the data is stored
+		if type(realmData) == "string" then
+			realmData = ns.leaderboardData[region][realmData]
+		end
+
+		return realmData[dungeonId]
+	end
+
+	local function MinimumKeyLevel (dungeon, realmName)
+		realmName = (realmName or GetNormalizedRealmName()):gsub("%s+", "")
+
+		local lowestData = LearderboardRealmData(ns.PLAYER_REGION, realmName, dungeon["id"])
+		return lowestData["mythicLevel"] or 2, lowestData["rank"] or 0, lowestData["upgrades"] or 0
+	end
+
+	-- Returns a string indicating keystone level and upgrades,
+	-- with the level number in the provided colour.
+	local function FormatMinimumKeystone (minimumKeyLevel, upgrades, color)
+		local keyColor = color or ""
+		local stars = GetStarsForUpgrades(upgrades, true)
+
+		return format("%s%s%s", stars, keyColor, minimumKeyLevel)
+	end
+
+	function AddMinimumKeyLevelTooltipForParty(tooltip, dungeon, contextLevel, additionalPlayer, additionalPlayerTitle)
+		local COLOR_GREEN = "|cff00ff00"
+		local COLOR_RED = "|cffff0000"
+		local COLOR_ORANGE = "|cffFF4500"
+
+		local rows = {}
+
+		-- Collect players
+		local n = GetNumGroupMembers()
+		for i = 0, n do
+			local unit = i == 0 and "player" or "party" .. i
+			local name, realm = GetNameAndRealm(unit)
+			table.insert(rows, {title = name, realm = realm})
+		end
+
+		if additionalPlayer then
+			local name, additionalRealm = GetNameAndRealm(additionalPlayer)
+			if additionalRealm then
+				local title = additionalPlayerTitle or name
+				table.insert(rows, {title = title, realm = additionalRealm, additional = true})
+			end
+		end
+
+		-- Add leaderboard data
+		for _, row in ipairs(rows) do
+			local keyLevel, rank, upgrades = MinimumKeyLevel(dungeon, row.realm)
+			row.level = keyLevel
+			row.upgrades = upgrades
+			row.rank = rank
+		end
+
+		-- Find lowest rank from collected realms
+		local minRow = nil
+
+		for _, row in ipairs(rows) do
+			if not minRow or row.rank < minRow.rank or row.level < minRow.level or (row.level == minRow.level and row.upgrades < minRow.upgrades) then
+				minRow = row
+			end
+		end
+
+		-- We can’t meaningfully display a minimum if the leaderboard is not yet full,
+		-- since the minimum will always be 2.
+		local showLevel = false
+		local status
+
+		if minRow.rank == LEADERBOARD_CAPACITY then
+			status = COLOR_RED..L.LEADERBOARD_STATUS_FULL
+			showLevel = true
+		elseif minRow.rank >= LEADERBOARD_NEARING_CAPACITY then
+			status = COLOR_ORANGE..L.LEADERBOARD_STATUS_ALMOST_FULL
+		else
+			status = COLOR_GREEN..L.LEADERBOARD_STATUS_OPEN
+		end
+
+		tooltip:AddDoubleLine(L.LEADERBOARD_TITLE, status)
+
+		if showLevel then
+			local level = tostring(minRow.level)
+			local color = ""
+			if minRow.additional then
+				-- Indicate adding this player would improve chances of run being tracked
+				color = COLOR_GREEN
+			end
+
+			tooltip:AddDoubleLine(L.LEADERBOARD_MINIMUM, FormatMinimumKeystone(level, minRow.upgrades, color), 1, 1, 1, 1, 1, 1)
+		end
+
+		if contextLevel then
+			if minRow.rank == LEADERBOARD_CAPACITY or contextLevel < minRow.level then
+				tooltip:AddLine(L.LEADERBOARD_KEYSTONE_LOW, 1, 0, 0)
+			end
+		end
+
+		-- Show this if modifier key?
+		-- if addon:IsModifierKeyDown() then
+		-- 	for _, row in ipairs(rows) do
+		-- 		tooltip:AddDoubleLine(row.title, FormatMinimumKeystone(row.level, row.upgrades, contextLevel), 1, 1, 1)
+		-- 	end
+		-- end
 	end
 end
 
@@ -1931,6 +2045,18 @@ do
 					-- Update game tooltip with player info
 					ShowTooltip(tooltip, bor(TooltipProfileOutput.PADDING(), ProfileOutput.ADD_LFD), leaderName, nil, PLAYER_FACTION, true, LFD_ACTIVITYID_TO_DUNGEONID[activityID], keystoneLevel)
 					ns.PROFILE_UI.ShowProfile(leaderName, nil, PLAYER_FACTION, tooltip, nil, activityID, keystoneLevel)
+
+					if ns.addonConfig.enableLeaderboardDataInTooltips then
+						local index = LFD_ACTIVITYID_TO_DUNGEONID[activityID]
+						if index then
+							local dungeon = CONST_DUNGEONS[index]
+
+							tooltip:AddLine(" ")
+							AddMinimumKeyLevelTooltipForParty(tooltip, dungeon, nil, leaderName, "Leader Realm")
+
+							tooltip:Show()
+						end
+					end
 				end
 			end
 			hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", SetSearchEntryTooltip)
@@ -2483,6 +2609,13 @@ do
 					local name, level, dungeonName = t[i][1], t[i][2], t[i][3]
 					tooltip:AddDoubleLine(name, "+" .. level .. dungeonName, 1, 1, 1, 1, 1, 1)
 				end
+			end
+
+			if ns.addonConfig.enableLeaderboardDataInTooltips then
+				local dungeon = CONST_DUNGEONS[index]
+
+				tooltip:AddLine(" ")
+				AddMinimumKeyLevelTooltipForParty(tooltip, dungeon, lvl)
 			end
 
 			tooltip:Show()
