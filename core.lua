@@ -1925,9 +1925,14 @@ do
 				if not ns.addonConfig.enableLFGTooltips then
 					return
 				end
-				local _, activityID, title, description, _, _, _, _, _, _, _, _, leaderName = C_LFGList.GetSearchResultInfo(resultID)
+				local results = C_LFGList.GetSearchResultInfo(resultID)
+				if not results then
+					return
+				end
+				local activityID = results.activityID
+				local leaderName = results.leaderName
 				if leaderName then
-					local keystoneLevel = GetKeystoneLevel(title) or GetKeystoneLevel(description) or 0
+					local keystoneLevel = 0 -- GetKeystoneLevel(title) or GetKeystoneLevel(description) or 0
 					-- Update game tooltip with player info
 					ShowTooltip(tooltip, bor(TooltipProfileOutput.PADDING(), ProfileOutput.ADD_LFD), leaderName, nil, PLAYER_FACTION, true, LFD_ACTIVITYID_TO_DUNGEONID[activityID], keystoneLevel)
 					ns.PROFILE_UI.ShowProfile(leaderName, nil, PLAYER_FACTION, tooltip, nil, activityID, keystoneLevel)
