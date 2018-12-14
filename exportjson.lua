@@ -172,7 +172,14 @@ do
 				end
 			end
 		end
-		local _, activityID = C_LFGList.GetActiveEntryInfo()
+		local activityEntryInfo = C_LFGList.GetActiveEntryInfo()
+
+		if not activityEntryInfo then
+			return
+		end
+
+		local activityID = activityEntryInfo.activityID
+
 		if activityID then
 			data.activity = activityID
 			data.queue = {}
@@ -181,25 +188,30 @@ do
 			if numActiveApps > 0 then
 				local applicants = C_LFGList.GetApplicants()
 				for j = 1, #applicants do
-					local id, status, pendingStatus, numMembers = C_LFGList.GetApplicantInfo(applicants[j])
-					if numMembers > 0 then
-						local memberIndex = 0
-						local bumpedIndex
-						for k = 1, numMembers do
-							local fullName, class, localizedClass, level, itemLevel, honorLevel, tank, healer, damage, assignedRole, relationship = C_LFGList.GetApplicantMemberInfo(id, k)
-							local name, realm = ns.GetNameAndRealm(fullName)
-							if name then
-								if not bumpedIndex then
-									bumpedIndex = true
-									i = i + 1
-								end
-								local role = GetQueuedRole(tank, healer, damage)
-								if numMembers > 1 then
-									memberIndex = memberIndex + 1
-									data.queue[i] = data.queue[i] or {}
-									data.queue[i][memberIndex] = format("%d-%s-%s", role, name, ns.GetRealmSlug(realm))
-								else
-									data.queue[i] = format("%d-%s-%s", role, name, ns.GetRealmSlug(realm))
+					local applicantInfo = C_LFGList.GetApplicantInfo(applicants[j])
+
+					if applicantInfo then
+						local id = applicantInfo.applicantID
+						local numMembers = applicantInfo.numMembers
+						if numMembers > 0 then
+							local memberIndex = 0
+							local bumpedIndex
+							for k = 1, numMembers do
+								local fullName, class, localizedClass, level, itemLevel, honorLevel, tank, healer, damage, assignedRole, relationship = C_LFGList.GetApplicantMemberInfo(id, k)
+								local name, realm = ns.GetNameAndRealm(fullName)
+								if name then
+									if not bumpedIndex then
+										bumpedIndex = true
+										i = i + 1
+									end
+									local role = GetQueuedRole(tank, healer, damage)
+									if numMembers > 1 then
+										memberIndex = memberIndex + 1
+										data.queue[i] = data.queue[i] or {}
+										data.queue[i][memberIndex] = format("%d-%s-%s", role, name, ns.GetRealmSlug(realm))
+									else
+										data.queue[i] = format("%d-%s-%s", role, name, ns.GetRealmSlug(realm))
+									end
 								end
 							end
 						end
