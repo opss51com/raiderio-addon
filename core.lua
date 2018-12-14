@@ -402,9 +402,13 @@ do
 		-- hosting a keystone group
 		local activityInfo = C_LFGList.GetActiveEntryInfo()
 
-		local activityID = activtyInfo['activityID']
-		local name = activtyInfo['name'] -- unusable (broken by blizzard)
-		local comment = activityInfo['comment'] -- unusable (broken by blizzard)
+		if not activityInfo then
+			return
+		end
+
+		local activityID = activtyInfo.activityID
+		local name = activtyInfo.name -- unusable (broken by blizzard)
+		local comment = activityInfo.comment -- unusable (broken by blizzard)
 
 		local temp = {}
 		if activityID then
@@ -422,18 +426,20 @@ do
 			local resultID = applications[i]
 			local searchResultInfo = C_LFGList.GetSearchResultInfo(resultID)
 
-			local activityID = searchResultInfo['activityID']
-			local name = searchResultInfo['name'] -- unusable (broken by blizzard)
-			local comment = searchResultInfo['comment'] -- unusable (broken by blizzard)
-			local isDelisted = searchResultInfo['isDelisted']
+			if searchResultInfo then
+				local activityID = searchResultInfo.activityID
+				local name = searchResultInfo.name -- unusable (broken by blizzard)
+				local comment = searchResultInfo.comment -- unusable (broken by blizzard)
+				local isDelisted = searchResultInfo.isDelisted
 
-			if activityID and not isDelisted then
-				local _, appStatus, pendingStatus = C_LFGList.GetApplicationInfo(resultID)
-				if not pendingStatus and (appStatus == "applied" or appStatus == "invited") then
-					local index = LFD_ACTIVITYID_TO_DUNGEONID[activityID]
-					if index then
-						temp[j] = { dungeon = CONST_DUNGEONS[index], level = 0 or GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0, resultID = resultID }
-						j = j + 1
+				if activityID and not isDelisted then
+					local _, appStatus, pendingStatus = C_LFGList.GetApplicationInfo(resultID)
+					if not pendingStatus and (appStatus == "applied" or appStatus == "invited") then
+						local index = LFD_ACTIVITYID_TO_DUNGEONID[activityID]
+						if index then
+							temp[j] = { dungeon = CONST_DUNGEONS[index], level = 0 or GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0, resultID = resultID }
+							j = j + 1
+						end
 					end
 				end
 			end
