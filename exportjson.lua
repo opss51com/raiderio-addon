@@ -172,7 +172,10 @@ do
 				end
 			end
 		end
-		local _, activityID = C_LFGList.GetActiveEntryInfo()
+		local activityEntryInfo = C_LFGList.GetActiveEntryInfo()
+
+		local activityID = activityEntryInfo['activityID']
+
 		if activityID then
 			data.activity = activityID
 			data.queue = {}
@@ -181,7 +184,9 @@ do
 			if numActiveApps > 0 then
 				local applicants = C_LFGList.GetApplicants()
 				for j = 1, #applicants do
-					local id, status, pendingStatus, numMembers = C_LFGList.GetApplicantInfo(applicants[j])
+					local applicantInfo = C_LFGList.GetApplicantInfo(applicants[j])
+					local id = applicantInfo.applicantID
+					local numMembers = applicantInfo.numMembers
 					if numMembers > 0 then
 						local memberIndex = 0
 						local bumpedIndex
