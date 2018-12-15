@@ -403,22 +403,21 @@ do
 		local activityInfo = C_LFGList.GetActiveEntryInfo()
 
 		if not activityInfo then
-			return
-		end
+			local activityID = activityInfo.activityID
+			local name = activityInfo.name -- unusable (broken by blizzard)
+			local comment = activityInfo.comment -- unusable (broken by blizzard)
 
-		local activityID = activityInfo.activityID
-		local name = activityInfo.name -- unusable (broken by blizzard)
-		local comment = activityInfo.comment -- unusable (broken by blizzard)
-
-		local temp = {}
-		if activityID then
-			local index = LFD_ACTIVITYID_TO_DUNGEONID[activityID]
-			if index then
-				temp.dungeon = CONST_DUNGEONS[index]
-				temp.level = 0 or GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0
-				return true, temp
+			local temp = {}
+			if activityID then
+				local index = LFD_ACTIVITYID_TO_DUNGEONID[activityID]
+				if index then
+					temp.dungeon = CONST_DUNGEONS[index]
+					temp.level = 0 or GetKeystoneLevel(name) or GetKeystoneLevel(comment) or 0
+					return true, temp
+				end
 			end
 		end
+
 		-- applying for a keystone group
 		local applications = C_LFGList.GetApplications()
 		local j = 1
