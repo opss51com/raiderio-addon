@@ -406,8 +406,8 @@ do
 			return
 		end
 
-		local activityID = activtyInfo.activityID
-		local name = activtyInfo.name -- unusable (broken by blizzard)
+		local activityID = activityInfo.activityID
+		local name = activityInfo.name -- unusable (broken by blizzard)
 		local comment = activityInfo.comment -- unusable (broken by blizzard)
 
 		local temp = {}
