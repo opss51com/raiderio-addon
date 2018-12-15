@@ -402,7 +402,7 @@ do
 		-- hosting a keystone group
 		local activityInfo = C_LFGList.GetActiveEntryInfo()
 
-		if not activityInfo then
+		if activityInfo then
 			local activityID = activityInfo.activityID
 			local name = activityInfo.name -- unusable (broken by blizzard)
 			local comment = activityInfo.comment -- unusable (broken by blizzard)
