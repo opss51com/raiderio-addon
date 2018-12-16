@@ -6,6 +6,7 @@ L.LOCALE_NAME = "enUS"
 
 L.UNKNOWN_SERVER_FOUND = "|cffFFFFFF%s|r has encountered a new server. Please write down this information |cffFF9999{|r |cffFFFFFF%s|r |cffFF9999,|r |cffFFFFFF%s|r |cffFF9999}|r and report it to the developers. Thank you!"
 L.OUTDATED_DATABASE_S = "|cffFFFFFF%s|r is using data that is |cffFF6666%d|r days old. Please update the addon for more accurate Mythic Plus Scores."
+L.PROVIDER_NOT_LOADED = "|cffFF0000Warning:|r |cffFFFFFF%s|r cannot find data for your current faction. Please check your |cffFFFFFF/raiderio|r settings and enable tooltip data for |cffFFFFFF%s|r."
 L.OUTDATED_DATABASE = "Scores are %d Days Old"
 L.OUTDATED_DATABASE_HOURS = "Scores are %d Hours Old"
 L.OUT_OF_SYNC_DATABASE_S = "|cffFFFFFF%s|r has Horde/Alliance faction data that is not in sync. Please update your RaiderIO client settings to sync both factions."
