@@ -399,6 +399,8 @@ do
 
 	-- returns the LFD status (returns the info based on what we are hosting a group for, or what we queued up for)
 	function GetLFDStatus()
+		local temp = {}
+
 		-- hosting a keystone group
 		local activityInfo = C_LFGList.GetActiveEntryInfo()
 
@@ -407,7 +409,6 @@ do
 			local name = activityInfo.name -- unusable (broken by blizzard)
 			local comment = activityInfo.comment -- unusable (broken by blizzard)
 
-			local temp = {}
 			if activityID then
 				local index = LFD_ACTIVITYID_TO_DUNGEONID[activityID]
 				if index then
