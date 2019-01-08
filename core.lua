@@ -1008,7 +1008,7 @@ do
 				end
 			end
 		end
-	end	
+	end
 
 	function AddProvider(data)
 		assert(type(data) == "table", "Raider.IO has been requested to load an invalid database.")
@@ -1066,6 +1066,113 @@ do
 		return a[2] > b[2]
 	end
 
+	local function getBestRunLines(profile, isProfile, addLFD, focusDungeon, focusKeystone, ...)
+		local lines = {}
+
+		local best = { dungeon = nil, level = 0, text = nil }			-- dungeon best
+		local overallBest = { dungeon = profile.maxDungeon, level = profile.dungeons[profile.maxDungeon.index] }	-- overall best
+
+		if addLFD then
+			local hasArgs, dungeonIndex = ...
+			if hasArgs == true then
+				best.dungeon = CONST_DUNGEONS[dungeonIndex] or best.dungeon
+			end
+		end
+
+		if focusDungeon then
+			local hasArgs, dungeonIndex = ...
+			if hasArgs == true then
+				best.dungeon = CONST_DUNGEONS[dungeonIndex] or best.dungeon
+			end
+		end
+
+		if focusKeystone then
+			local hasArgs, arg1, arg2 = ...
+			if hasArgs == true then
+				if ns.DEBUG_MODE then -- TODO
+					table.insert(lines, "focusKeystone arg1 = " .. tostring(arg1))
+					table.insert(lines, "focusKeystone arg2 = " .. tostring(arg2))
+				end
+			end
+		end
+
+		-- if we don't have a best dungeon focused by this point, try to find one based on our queue or current instance
+		if not best.dungeon and addLFD then
+			local numSigned, status = GetLFDStatus()
+			if numSigned then
+				if numSigned == true then
+					best.dungeon = status.dungeon
+					best.level = status.level or 0
+				elseif numSigned > 0 then
+					local highestDungeon
+					for j = 1, numSigned do
+						local d = status[j]
+						if not highestDungeon or d.level > highestDungeon.level then
+							highestDungeon = d
+						end
+					end
+					best.dungeon = highestDungeon
+					best.level = highestDungeon.level or 0
+				end
+			end
+			if not best.dungeon then
+				best.dungeon = GetInstanceStatus()
+			end
+		end
+
+		-- if we have a dungeon, but no level assigned to it, try to read one from our profile
+		if best.dungeon and (not best.level or best.level < 1) then
+			best.level = profile.dungeons[best.dungeon.index] or 0
+		end
+
+		-- if no dungeon, or the level is undefined or 0, drop showing both as it's irrelevant information
+		if not best.dungeon or (best.level and best.level < 1) then
+			best.dungeon, best.level = nil, 0
+		end
+
+		if profile.isFifteenPlusAchievement then
+			if profile.maxDungeonLevel < 15 then
+				best.text = L.KEYSTONE_COMPLETED_15
+			end
+		elseif profile.isTenPlusAchievement then
+			if profile.maxDungeonLevel < 10 then
+				best.text = L.KEYSTONE_COMPLETED_10
+			end
+		elseif profile.isFivePlusAchievement then
+			if profile.maxDungeonLevel < 5 then
+				best.text = L.KEYSTONE_COMPLETED_5
+			end
+		end
+
+		if not best.text and (not best.dungeon or overallBest.dungeon.index ~= best.dungeon.index) and overallBest.level > 0 then
+			local bestRunLabel = (isProfile or not ns.addonConfig.showBestRunFirst) and L.BEST_RUN or L.RAIDERIO_BEST_RUN
+			local lineColor = (isProfile or not ns.addonConfig.showBestRunFirst) and {1, 1, 1} or {1, 0.85, 0}
+			table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[overallBest.dungeon.index]) .. overallBest.level .. " " .. overallBest.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], GetScoreColor(profile.allScore)})
+		end
+
+		if best.dungeon then
+			if best.dungeon == profile.maxDungeon then
+				local bestRunLabel = (isProfile or not ns.addonConfig.showBestRunFirst) and L.BEST_FOR_DUNGEON or L.RAIDERIO_BEST_RUN
+				local lineColor = (isProfile or not ns.addonConfig.showBestRunFirst) and {0, 1, 0} or {1, 0.85, 0}
+				table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], GetScoreColor(profile.allScore)})
+			elseif best.dungeon and best.level > 0 then
+				table.insert(lines, {L.BEST_FOR_DUNGEON, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 1, 1, 1, GetScoreColor(profile.allScore)})
+			end
+		elseif best.text then
+			table.insert(lines, {L.BEST_RUN, best.text, 1, 1, 1, GetScoreColor(profile.allScore)})
+		end
+
+		return lines
+	end
+
+	local function insertToOutput(output, outputLength, linesToInsert)
+		for i=1, #linesToInsert do
+			output[outputLength + i - 1] = linesToInsert[i]
+		end
+
+		return output
+	end
+
 	-- reads the profile and formats the output using the provided output flags
 	local function ShapeProfileData(dataType, profile, outputFlag, ...)
 		local output = { dataType = dataType, profile = profile, outputFlag = outputFlag, length = 0 }
@@ -1103,17 +1210,28 @@ do
 			end
 
 			if dataType == CONST_PROVIDER_DATA_MYTHICPLUS then
-				local scoreLabel = isProfile and L.TOTAL_MP_SCORE or L.RAIDERIO_MP_SCORE
+				if ns.addonConfig.showBestRunFirst then
+					local linesToInsert = getBestRunLines(profile, isProfile, addLFD, focusDungeon, focusKeystone, ...)
+
+					output = insertToOutput(output, i, linesToInsert)
+					i = i + #linesToInsert
+				end
+
+				local scoreLabel = (isProfile or ns.addonConfig.showBestRunFirst) and L.TOTAL_MP_SCORE or L.RAIDERIO_MP_SCORE
+				local lineColor = (isProfile or ns.addonConfig.showBestRunFirst) and { 1, 1, 1} or { 1, 0.85, 0}
 				if profile.allScore >= 0 then
-					if isProfile then
-						output[i] = {scoreLabel, GetFormattedScore(profile.allScore, profile.isPrevAllScore), 1, 1, 1, GetScoreColor(profile.allScore)}
-					else
-						output[i] = {scoreLabel, GetFormattedScore(profile.allScore, profile.isPrevAllScore), 1, 0.85, 0, GetScoreColor(profile.allScore)}
-					end
+					output[i] = { scoreLabel, GetFormattedScore(profile.allScore, profile.isPrevAllScore), lineColor[1], lineColor[2], lineColor[3], GetScoreColor(profile.allScore)}
 					i = i + 1
 				else
-					output[i] = {scoreLabel, L.UNKNOWN_SCORE, 1, 0.85, 0, 1, 1, 1}
+					output[i] = {scoreLabel, L.UNKNOWN_SCORE, lineColor[1], lineColor[2], lineColor[3], 1, 1, 1}
 					i = i + 1
+				end
+
+				if not ns.addonConfig.showBestRunFirst then
+					local linesToInsert = getBestRunLines(profile, isProfile, addLFD, focusDungeon, focusKeystone, ...)
+
+					output = insertToOutput(output, i, linesToInsert)
+					i = i + #linesToInsert
 				end
 
 				if isModKeyDown or isModKeyDownSticky then
@@ -1141,101 +1259,6 @@ do
 				end
 
 				do
-					local best = { dungeon = nil, level = 0, text = nil }			-- dungeon best
-					local overallBest = { dungeon = profile.maxDungeon, level = profile.dungeons[profile.maxDungeon.index] }	-- overall best
-
-					if addLFD then
-						local hasArgs, dungeonIndex = ...
-						if hasArgs == true then
-							best.dungeon = CONST_DUNGEONS[dungeonIndex] or best.dungeon
-						end
-					end
-
-					if focusDungeon then
-						local hasArgs, dungeonIndex = ...
-						if hasArgs == true then
-							best.dungeon = CONST_DUNGEONS[dungeonIndex] or best.dungeon
-						end
-					end
-
-					if focusKeystone then
-						local hasArgs, arg1, arg2 = ...
-						if hasArgs == true then
-							if ns.DEBUG_MODE then -- TODO
-								output[i] = "focusKeystone arg1 = " .. tostring(arg1)
-								i = i + 1
-								output[i] = "focusKeystone arg2 = " .. tostring(arg2)
-								i = i + 1
-							end
-						end
-					end
-
-					-- if we don't have a best dungeon focused by this point, try to find one based on our queue or current instance
-					if not best.dungeon and addLFD then
-						local numSigned, status = GetLFDStatus()
-						if numSigned then
-							if numSigned == true then
-								best.dungeon = status.dungeon
-								best.level = status.level or 0
-							elseif numSigned > 0 then
-								local highestDungeon
-								for j = 1, numSigned do
-									local d = status[j]
-									if not highestDungeon or d.level > highestDungeon.level then
-										highestDungeon = d
-									end
-								end
-								best.dungeon = highestDungeon
-								best.level = highestDungeon.level or 0
-							end
-						end
-						if not best.dungeon then
-							best.dungeon = GetInstanceStatus()
-						end
-					end
-
-					-- if we have a dungeon, but no level assigned to it, try to read one from our profile
-					if best.dungeon and (not best.level or best.level < 1) then
-						best.level = profile.dungeons[best.dungeon.index] or 0
-					end
-
-					-- if no dungeon, or the level is undefined or 0, drop showing both as it's irrelevant information
-					if not best.dungeon or (best.level and best.level < 1) then
-						best.dungeon, best.level = nil, 0
-					end
-
-					if profile.isFifteenPlusAchievement then
-						if profile.maxDungeonLevel < 15 then
-							best.text = L.KEYSTONE_COMPLETED_15
-						end
-					elseif profile.isTenPlusAchievement then
-						if profile.maxDungeonLevel < 10 then
-							best.text = L.KEYSTONE_COMPLETED_10
-						end
-					elseif profile.isFivePlusAchievement then
-						if profile.maxDungeonLevel < 5 then
-							best.text = L.KEYSTONE_COMPLETED_5
-						end
-					end
-
-					if best.dungeon then
-						if best.dungeon == profile.maxDungeon then
-							output[i] = {L.BEST_FOR_DUNGEON, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 0, 1, 0, GetScoreColor(profile.allScore)}
-							i = i + 1
-						elseif best.dungeon and best.level > 0 then
-							output[i] = {L.BEST_FOR_DUNGEON, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 1, 1, 1, GetScoreColor(profile.allScore)}
-							i = i + 1
-						end
-					elseif best.text then
-						output[i] = {L.BEST_RUN, best.text, 1, 1, 1, GetScoreColor(profile.allScore)}
-						i = i + 1
-					end
-
-					if not best.text and (not best.dungeon or overallBest.dungeon.index ~= best.dungeon.index) and overallBest.level > 0 then
-						output[i] = {L.BEST_RUN, GetStarsForUpgrades(profile.dungeonUpgrades[overallBest.dungeon.index]) .. overallBest.level .. " " .. overallBest.dungeon.shortNameLocale, 1, 1, 1, GetScoreColor(profile.allScore)}
-						i = i + 1
-					end
-
 					if profile.keystoneFifteenPlus > 0 then
 						output[i] = {L.TIMED_15_RUNS, GetFormattedRunCount(profile.keystoneFifteenPlus) .. (profile.keystoneFifteenPlus > 10 and '+' or ''), 1, 1, 1, GetScoreColor(profile.allScore)}
 						i = i + 1
@@ -1256,7 +1279,6 @@ do
 					output[i] = {L.MAINS_SCORE, profile.mainScore, 1, 1, 1, GetScoreColor(profile.mainScore)}
 					i = i + 1
 				end
-
 			end
 
 			if dataType == CONST_PROVIDER_DATA_RAIDING then
@@ -1282,7 +1304,7 @@ do
 					local bestProg = profile.progress[1]
 					if mainProg and bestProg and ((mainProg.difficulty > bestProg.difficulty) or (mainProg.progressCount > bestProg.progressCount)) then
 						output[i] = {
-							L.MAINS_RAID_PROGRESS, 
+							L.MAINS_RAID_PROGRESS,
 							format("|c%s%s|r %d/%d", RAID_DIFFICULTY_COLORS[mainProg.difficulty][4], RAID_DIFFICULTY_SUFFIXES[mainProg.difficulty], mainProg.progressCount, profile.currentRaid.bossCount),
 							1, 1, 1, 1, 1, 1}
 						i = i + 1
@@ -2633,7 +2655,7 @@ do
 			local output = { mythicPlus = nil, raiding = nil }
 			if d then
 				local r
-				
+
 				r = d[CONST_PROVIDER_DATA_MYTHICPLUS]
 				if r then output.mythicPlus = r.profile end
 
