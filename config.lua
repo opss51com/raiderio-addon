@@ -13,6 +13,7 @@ local addonConfig = {
 	enableWhoMessages = true,
 	enableGuildTooltips = true,
 	enableKeystoneTooltips = true,
+	showBestRunFirst = false,
 	showMainsScore = true,
 	showDropDownCopyURL = true,
 	showSimpleScoreColors = false,
@@ -398,6 +399,7 @@ do
 
 			config:CreatePadding()
 			config:CreateHeadline(L.TOOLTIP_CUSTOMIZATION)
+			config:CreateOptionToggle(L.SHOW_RAIDERIO_BESTRUN_FIRST, L.SHOW_RAIDERIO_BESTRUN_FIRST_DESC, "showBestRunFirst", { needReload = true })
 			config:CreateOptionToggle(L.SHOW_MAINS_SCORE, L.SHOW_MAINS_SCORE_DESC, "showMainsScore")
 			config:CreateOptionToggle(L.ENABLE_SIMPLE_SCORE_COLORS, L.ENABLE_SIMPLE_SCORE_COLORS_DESC, "showSimpleScoreColors")
 			config:CreateOptionToggle(L.ENABLE_NO_SCORE_COLORS, L.ENABLE_NO_SCORE_COLORS_DESC, "disableScoreColors")
