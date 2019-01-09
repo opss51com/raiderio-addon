@@ -1150,16 +1150,18 @@ do
 			table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[overallBest.dungeon.index]) .. overallBest.level .. " " .. overallBest.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], GetScoreColor(profile.allScore)})
 		end
 
-		if best.dungeon then
+		if best.dungeon and best.level > 0 then
 			if best.dungeon == profile.maxDungeon then
 				local bestRunLabel = (isProfile or not ns.addonConfig.showBestRunFirst) and L.BEST_FOR_DUNGEON or L.RAIDERIO_BEST_RUN
 				local lineColor = (isProfile or not ns.addonConfig.showBestRunFirst) and {0, 1, 0} or {1, 0.85, 0}
 				table.insert(lines, {bestRunLabel, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, lineColor[1], lineColor[2], lineColor[3], GetScoreColor(profile.allScore)})
-			elseif best.dungeon and best.level > 0 then
+			else
 				table.insert(lines, {L.BEST_FOR_DUNGEON, GetStarsForUpgrades(profile.dungeonUpgrades[best.dungeon.index]) .. best.level .. " " .. best.dungeon.shortNameLocale, 1, 1, 1, GetScoreColor(profile.allScore)})
 			end
 		elseif best.text then
-			table.insert(lines, {L.BEST_RUN, best.text, 1, 1, 1, GetScoreColor(profile.allScore)})
+			local bestRunLabel = (isProfile or not ns.addonConfig.showBestRunFirst) and L.BEST_RUN or L.RAIDERIO_BEST_RUN
+			local lineColor = (isProfile or not ns.addonConfig.showBestRunFirst) and {1, 1, 1} or {1, 0.85, 0}
+			table.insert(lines, {bestRunLabel, best.text, lineColor[1], lineColor[2], lineColor[3], GetScoreColor(profile.allScore)})
 		end
 
 		return lines
