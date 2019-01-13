@@ -1,4 +1,4 @@
-## Interface: 80000
+## Interface: 80100
 ## Title: Raider.IO |cffFFFFFFRaiding|r (Korea - Alliance)
 ## Author: Vladinator (Voidzone-Ravencrest) and Aspyr (Aspyrael-Skullcrusher)
 ## Dependencies: RaiderIO
